@@ -1,22 +1,11 @@
-#include <SFML/Graphics.hpp>
-
+#include "Application.h"
 int main()
 {
-	sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
-	
+	sf::RenderWindow window(sf::VideoMode(1600, 800), "CAE");
+	ImGui::SFML::Init(window, true);
 
-	while (window.isOpen())
-	{
-		sf::Event event;
-		while (window.pollEvent(event))
-		{
-			if (event.type == sf::Event::Closed)
-				window.close();
-		}
-
-		window.clear();
-		window.display();
-	}
+	CAE::Application app(window);
+	app.start();
 
 	return 0;
 }
