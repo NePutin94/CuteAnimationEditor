@@ -1,5 +1,5 @@
 #include "Application.h"
-
+#include <iomanip>
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -22,7 +22,8 @@ void CAE::Application::draw()
 {
 	window->clear();
 	if (currAsset != nullptr)
-		window->draw(*currAsset);
+		for(auto& i : currAsset->sheetFile)
+			window->draw(i);
 	Console::AppLog::Draw("LogConsole", &LogConsole);
 	ImGui::SFML::Render(*window);
 	window->display();
@@ -46,6 +47,26 @@ void CAE::Application::createAssets()
 	ImGui::Text("Create asset: ");
 	ImGui::InputText("Name", buff, IM_ARRAYSIZE(buff));
 	ImGui::InputText("Texture path", buff2, IM_ARRAYSIZE(buff2));
+	ImGui::InputText("Output file", buff3, IM_ARRAYSIZE(buff3));
+	static int w;
+	static int h;
+	ImGui::InputInt("width", &w);
+	ImGui::InputInt("height", &h);
+	if (ImGui::Button("Create"))
+	{
+		ofstream out;
+		out.open(buff3);
+		json j;
+		j["name"] = buff;
+		j["texturePath"] = buff2;
+		j["width"] = w;
+		j["height"] = h;
+		out << std::setw(4) << j;
+		out.close();
+		w = 0;
+		h = 0;
+		clearBuffers();
+	}
 	ImGui::EndChild();
 }
 
@@ -138,7 +159,7 @@ void CAE::Application::start()
 		ImGuiWindowFlags window_flags = 0;
 		window_flags |= ImGuiWindowFlags_MenuBar;
 		window_flags |= ImGuiWindowFlags_NoMove;
-		window_flags |= ImGuiWindowFlags_NoResize;	
+		window_flags |= ImGuiWindowFlags_NoResize;
 		auto io = ImGui::GetIO();
 		ImVec2 window_pos = ImVec2(io.DisplaySize.x - 1.f, 1.f);
 		ImVec2 window_pos_pivot = ImVec2(1.0f, 0.0f);
