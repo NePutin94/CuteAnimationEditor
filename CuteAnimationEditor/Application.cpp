@@ -1,5 +1,8 @@
 #include "Application.h"
 #include <iomanip>
+#include <future>
+using json = nlohmann::json;
+
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -9,8 +12,29 @@ void CAE::Application::handleEvent(sf::Event& event)
 			window->close();
 			break;
 		}
+		if (event.type == sf::Event::MouseButtonReleased)
+			mPrevPose = { 0,0 };
+
+		if (event.type == sf::Event::KeyPressed)
+		{
+			if (event.key.code == sf::Keyboard::Space)
+				mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
+		}
+		if (event.type == sf::Event::KeyReleased)
+		{
+		}
 		ImGui::SFML::ProcessEvent(event);
 	}
+
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+		if (useMouse)
+		{
+			auto mCurrPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
+			auto delta = mPrevPose - mCurrPose;
+			Console::AppLog::addLog(std::to_string(delta.x) + ", " + std::to_string(delta.y), Console::info);
+			view.move(delta);
+		}
+
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Tilde) && pressClock.getElapsedTime().asMilliseconds() > 500)
 	{
 		LogConsole = !LogConsole;
@@ -20,9 +44,10 @@ void CAE::Application::handleEvent(sf::Event& event)
 
 void CAE::Application::draw()
 {
+	window->setView(view);
 	window->clear();
 	if (currAsset != nullptr)
-		for(auto& i : currAsset->sheetFile)
+		for (auto& i : currAsset->sheetFile)
 			window->draw(i);
 	Console::AppLog::Draw("LogConsole", &LogConsole);
 	ImGui::SFML::Render(*window);
@@ -35,8 +60,48 @@ void CAE::Application::loadAssets()
 	ImGui::InputText("Texture path", buff, IM_ARRAYSIZE(buff));
 	if (ImGui::Button("Load"))
 	{
-		animAssets.push_back(new CAE::AnimationAsset{ buff });
+		auto task = [this](std::string copyBuffer)
+		{
+			animAssets.push_back(new CAE::AnimationAsset{ copyBuffer });
+		};
+		std::string copy = buff;
+		std::thread(task, copy).detach(); //Dangerous
+		clearBuffers();
 		Console::AppLog::addLog("OK, Load", Console::logType::error);
+	}
+	ImGui::EndChild();
+}
+
+void CAE::Application::ViewSettings()
+{
+	ImGui::BeginChild("Settings");
+	if (ImGui::TreeNode("View Settings: "))
+	{
+		ImGui::Text("View Size: ");
+		static float xSize = view.getSize().x;
+		static float ySize = view.getSize().y;
+		ImGui::DragFloat("Size X: ", &xSize, 1.f);
+		ImGui::DragFloat("Size Y:", &ySize, 1.f);
+		if (currAsset != nullptr)
+			if (ImGui::Button("Set size as the texture"))
+			{
+				xSize = currAsset->getSprite().getTexture()->getSize().x;
+				ySize = currAsset->getSprite().getTexture()->getSize().y;
+				view.setSize(xSize, ySize);
+			}
+		if (ImGui::Button("Update Size"))
+			view.setSize(xSize, ySize);
+		ImGui::Separator();
+		ImGui::Text("View Center: ");
+		static float x = view.getCenter().x;
+		static float y = view.getCenter().x;
+		ImGui::InputFloat("position X", &x);
+		ImGui::InputFloat("position Y", &y);
+		if (ImGui::Button("Update Position"))
+			view.setCenter(x, y);
+		ImGui::Separator();
+		ImGui::Checkbox("use the mouse to move", &useMouse);
+		ImGui::TreePop();
 	}
 	ImGui::EndChild();
 }
@@ -84,6 +149,13 @@ void CAE::Application::viewLoadedAssets()
 			if (ImGui::TreeNode(a->getName().c_str()))
 			{
 				ImGui::Image(a->getSprite(), { 200.f,200.f });
+				ImGui::Spacing();
+				ImGui::Text("Info: ");
+				sf::Vector2f size = (sf::Vector2f)a->getSprite().getTexture()->getSize();
+				auto WH = a->getWH();
+				ImGui::Text("Texture Size: %.2f %.2f", size.x, size.y);
+				ImGui::Text("Texture Path: %s", a->getPath().c_str());
+				ImGui::Text("step on the axis Width: %i Height: %i", WH.first, WH.second);
 				if (ImGui::Button("select as current"))
 					currAsset = a;
 				ImGui::TreePop();
@@ -114,6 +186,12 @@ void CAE::Application::drawMenuBar()
 				state = states::loadedAssets;
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("Settings"))
+		{
+			if (ImGui::MenuItem("Window settings", "", state == states::WindowSettings))
+				state = states::WindowSettings;
+			ImGui::EndMenu();
+		}
 		ImGui::EndMenuBar();
 	}
 }
@@ -140,6 +218,9 @@ void CAE::Application::drawUI()
 	case CAE::Application::loadedAssets:
 		viewLoadedAssets();
 		break;
+	case CAE::Application::WindowSettings:
+		ViewSettings();
+		break;
 	default:
 		break;
 	}
@@ -155,7 +236,7 @@ void CAE::Application::start()
 		handleEvent(event);
 		currentSlice += lastFt;
 		ImGui::SFML::Update(*window, deltaClock.restart());
-
+		ImGui::ShowDemoWindow();
 		ImGuiWindowFlags window_flags = 0;
 		window_flags |= ImGuiWindowFlags_MenuBar;
 		window_flags |= ImGuiWindowFlags_NoMove;
@@ -179,5 +260,54 @@ void CAE::Application::start()
 		float ft{ chrono::duration_cast<chrono::duration<float, milli>>(elapsedTime).count() };
 		lastFt = ft;
 
+	}
+}
+
+CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path)
+{
+	if (std::ifstream i(_path.data()); i.is_open())
+	{
+		json j;
+		i >> j;
+		try
+		{
+			name = j.at("name").get<std::string>();
+			width = j.at("width").get<int>();
+			height = j.at("height").get<int>();
+			texturePath = j.at("texturePath").get<std::string>();
+		}
+		catch (json::exception & e)
+		{
+			std::string str = e.what();
+			Console::AppLog::addLog("Json throw exception, message: " + str, Console::error);
+		}
+		texture.loadFromFile(texturePath);
+		spr.setTexture(texture);
+		if (width != 0 && height != 0)
+			buildTileSheet();
+	}
+	else
+		Console::AppLog::addLog("File " + texturePath + " can't be opened!", Console::error);
+}
+
+void CAE::AnimationAsset::buildTileSheet()
+{
+	int x = 100;
+	int y = 100;
+	for (auto i = 0; i < texture.getSize().y;)
+	{
+		for (auto j = 0; j < texture.getSize().x;)
+		{
+			sf::Sprite spr;
+			spr.setTexture(texture);
+			spr.setTextureRect({ j, i, width, height });
+			spr.setPosition(x, y);
+			sheetFile.emplace_back(spr);
+			x += 5 + width;
+			j += width;
+		}
+		y += 5 + height;
+		x = 100;
+		i += height;
 	}
 }

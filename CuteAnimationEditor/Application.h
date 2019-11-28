@@ -4,90 +4,37 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 #include <fstream>
-using json = nlohmann::json;
+
 namespace CAE
 {
 	class AnimationAsset
 	{
 	private:
-		std::string path;
+		std::string texturePath;
+		std::string assetPath;
 		sf::Texture texture;
 		sf::Sprite spr;
 		std::string name;
-		
+
 		int width;
 		int height;
 	public:
 		std::vector<sf::Sprite> sheetFile;
-		AnimationAsset(std::string_view _path)
-		{
-			std::ifstream i(_path.data());
-			json j;
-			i >> j;
-			try
-			{
-				name = j.at("name").get<std::string>();
-				width = j.at("width").get<int>();
-				height = j.at("height").get<int>();
-				path = j.at("texturePath").get<std::string>();
-			}
-			catch (json::exception & e)
-			{
-				std::string str = e.what();
-				Console::AppLog::addLog("json throw exception, message: " + str, Console::error);
-			}
-			texture.loadFromFile(path);
-			spr.setTexture(texture);
-			if (width != 0 && height != 0)
-				buildTileSheet();
-		}
+		AnimationAsset(std::string_view _path);
 
-		void buildTileSheet()
-		{
-			int x = 100;
-			int y = 100;
-			//for (auto i = 0; i < texture.getSize().x;)
-			//{
-			//	for (auto j = 0; j < texture.getSize().y;)
-			//	{
-			//		sf::Sprite spr;
-			//		spr.setTexture(texture);
-			//		spr.setTextureRect({ i, j, width, height });
-			//		spr.setPosition(x, y);
-			//		sheetFile.emplace_back(spr);
-			//		x += 5 + width;
-			//		j += height;
-			//	}
-			//	y += 5 + height;
-			//	x = 100;
-			//	i += width;
-			//}
-			for (auto i = 0; i < texture.getSize().y;)
-			{
-				for (auto j = 0; j < texture.getSize().x;)
-				{
-					sf::Sprite spr;
-					spr.setTexture(texture);
-					spr.setTextureRect({ j, i, width, height });
-					spr.setPosition(x, y);
-					sheetFile.emplace_back(spr);
-					x += 5 + width;
-					j += width;
-				}
-				y += 5 + height;
-				x = 100;
-				i += height;
-			}
-		}
+		auto getPath() { return texturePath; }
 
-	/*	operator sf::Drawable& ()
-		{
-			return spr;
-		}*/
-		auto begin() { return sheetFile.begin(); }
-		auto end() { return sheetFile.end(); }
-		auto getName() { return name; }
-		sf::Sprite getSprite() { return spr; }
+		std::pair<int, int> getWH() { return std::make_pair(width, height); }
+
+		void buildTileSheet();
+
+		auto cbegin() const { return sheetFile.cbegin(); }
+
+		auto cend() const { return sheetFile.cend(); }
+
+		auto getName() const { return name; }
+
+		const sf::Sprite& getSprite() const { return spr; }
 	};
 
 	class Application
@@ -96,6 +43,7 @@ namespace CAE
 		sf::RenderWindow* window;
 		sf::Clock deltaClock;
 		sf::Clock pressClock;
+		sf::View view;
 		enum states
 		{
 			Null = 0,
@@ -103,8 +51,10 @@ namespace CAE
 			LoadAsset,
 			loadedAssets,
 			SaveAsset,
-			Editor
+			Editor,
+			WindowSettings
 		} state;
+
 		std::vector<AnimationAsset*> animAssets;
 		AnimationAsset* currAsset;
 
@@ -120,6 +70,7 @@ namespace CAE
 		void draw();
 
 		void loadAssets();
+		void ViewSettings();
 		void createAssets();
 		void editor() {}
 		void viewLoadedAssets();
@@ -132,9 +83,14 @@ namespace CAE
 			strcpy_s(buff2, "");
 			strcpy_s(buff3, "");
 		}
-
+		bool useMouse;
+		sf::Vector2f mPrevPose;
+		//sf::Vector2f deltaForMoude;
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(Null) {}
+		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false)
+		{
+			view.setSize(w.getDefaultView().getSize());
+		}
 		~Application()
 		{
 			for (auto& it : animAssets)
