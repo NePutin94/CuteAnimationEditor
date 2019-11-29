@@ -7,6 +7,45 @@
 
 namespace CAE
 {
+	class Application;
+	enum PriorityOfDrawing
+	{
+		Lowest = 0,
+		Low,
+		Medium,
+		High,
+		Highest
+	};
+
+	constexpr std::string_view PriorityOfDrawing_s[] =
+	{
+		 "Lowest",
+		 "Low",
+		 "Medium",
+		 "High",
+		 "Highest"
+	};
+
+	class Part
+	{
+	private:
+		sf::Sprite sprite;
+		PriorityOfDrawing priority;
+		bool _isSelected;
+		size_t id;
+	public:
+		Part(sf::Sprite s, PriorityOfDrawing p, size_t _id) : sprite(s), priority(p), _isSelected(false), id(_id) {}
+		sf::Sprite& getSpite() { return sprite; }
+		auto getPriority() { return priority; }
+		auto getID() { return id; }
+		void setPriority(PriorityOfDrawing p) { priority = p; }
+		bool& isSelected() { return _isSelected; }
+		operator sf::Drawable& ()
+		{
+			return sprite;
+		}
+	};
+
 	class AnimationAsset
 	{
 	private:
@@ -18,8 +57,9 @@ namespace CAE
 
 		int width;
 		int height;
+		void sort();
 	public:
-		std::vector<sf::Sprite> sheetFile;
+		std::vector<Part> sheetFile;
 		AnimationAsset(std::string_view _path);
 
 		auto getPath() { return texturePath; }
@@ -35,6 +75,7 @@ namespace CAE
 		auto getName() const { return name; }
 
 		const sf::Sprite& getSprite() const { return spr; }
+		friend class Application;
 	};
 
 	class Application
@@ -72,7 +113,7 @@ namespace CAE
 		void loadAssets();
 		void ViewSettings();
 		void createAssets();
-		void editor() {}
+		void editor();
 		void viewLoadedAssets();
 		void saveAsset() {}
 		void drawMenuBar();
@@ -85,12 +126,14 @@ namespace CAE
 		}
 		bool useMouse;
 		sf::Vector2f mPrevPose;
+		sf::Vector2f mPrevMouse;
 		//sf::Vector2f deltaForMoude;
 	public:
 		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false)
 		{
 			view.setSize(w.getDefaultView().getSize());
 		}
+
 		~Application()
 		{
 			for (auto& it : animAssets)
