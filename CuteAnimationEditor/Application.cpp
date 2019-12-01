@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <algorithm>
 #include <future>
-using json = nlohmann::json;
 
 void CAE::Application::handleEvent(sf::Event& event)
 {
@@ -10,7 +9,7 @@ void CAE::Application::handleEvent(sf::Event& event)
 	{
 		if (event.type == sf::Event::Closed)
 		{
-			window->close();
+			state = Exit;
 			break;
 		}
 		if (event.type == sf::Event::MouseButtonReleased)
@@ -84,19 +83,24 @@ void CAE::Application::loadAssets()
 	ImGui::InputText("Texture path", buff, IM_ARRAYSIZE(buff));
 	if (ImGui::Button("Load"))
 	{
-		auto task = [this](std::string copyBuffer)
+		if (buff != NULL)
 		{
-			animAssets.push_back(new CAE::AnimationAsset{ copyBuffer });
-		};
-		std::string copy = buff;
-		std::thread(task, copy).detach(); //Dangerous
-		clearBuffers();
-		Console::AppLog::addLog("OK, Load", Console::logType::error);
+			auto task = [this](std::string copyBuffer)
+			{
+				animAssets.push_back(new CAE::AnimationAsset{ copyBuffer });
+			};
+			std::string copy = buff;
+			std::thread(task, copy).detach(); //Dangerous
+			clearBuffers();
+			Console::AppLog::addLog("OK, Load", Console::logType::info);
+		}
+		else
+			Console::AppLog::addLog("cannot be loaded now", Console::logType::error);
 	}
 	ImGui::EndChild();
 }
 
-void CAE::Application::ViewSettings()
+void CAE::Application::viewSettings()
 {
 	ImGui::BeginChild("Settings");
 	if (ImGui::TreeNode("View Settings: "))
@@ -166,6 +170,24 @@ void CAE::Application::editor()
 	{
 		if (ImGui::Button("Sort"))
 			currAsset->sort();
+		if (ImGui::TreeNode("Rebuild"))
+		{
+			int w = currAsset->width;
+			int h = currAsset->height;
+			int sp = currAsset->space;
+
+			if (ImGui::DragInt("#width", &w, 1.f))
+				currAsset->width = w;
+			if (ImGui::DragInt("#height", &h, 1.f))
+				currAsset->height = h;
+			if (ImGui::DragInt("#space", &sp, 1.f, 0, 999))
+				currAsset->space = sp;
+
+			ImGui::Separator();
+			if (ImGui::Button("Rebuild"))
+				currAsset->buildTileSheet();
+			ImGui::TreePop();
+		}
 		if (ImGui::TreeNode("Change WH for asset"))
 		{
 			for (auto& i : currAsset->sheetFile)
@@ -224,6 +246,14 @@ void CAE::Application::editor()
 	ImGui::EndChild();
 }
 
+void CAE::Application::mainWindow()
+{
+	ImGui::BeginChild("MainWindow");
+	if (ImGui::Button("Load Last Session"))
+		loadState();
+	ImGui::EndChild();
+}
+
 void CAE::Application::viewLoadedAssets()
 {
 	ImGui::BeginChild("Loaded assets");
@@ -252,6 +282,33 @@ void CAE::Application::viewLoadedAssets()
 			ImGui::Separator();
 		}
 	}
+	ImGui::EndChild();
+}
+
+void CAE::Application::saveAsset()
+{
+	ImGui::BeginChild("Save asset");
+	ImGui::Text("Save current asset");
+	if (currAsset != nullptr)
+	{
+		ImGui::InputText("File Path", buff, IM_ARRAYSIZE(buff));
+		if (ImGui::Button("Save"))
+		{
+			ofstream o(buff);
+			json j;
+			auto& info = j["defaultInfo"];
+			info["name"] = currAsset->name;
+			info["texturePath"] = currAsset->texturePath;
+			info["width"] = currAsset->width;
+			info["height"] = currAsset->height;
+			info["space"] = currAsset->space;
+			o << std::setw(4) << j;
+			o.close();
+			clearBuffers();
+		}
+	}
+	else
+		ImGui::TextColored(ImVec4(1, 0, 0, 1), "The current asset is not selected");
 	ImGui::EndChild();
 }
 
@@ -290,7 +347,23 @@ void CAE::Application::drawUI()
 	drawMenuBar();
 	switch (state)
 	{
+	case CAE::Application::Exit:
+		ImGui::BeginChild("Note");
+		ImGui::PushItemWidth(50.f);
+		ImGui::Text("SAVE SESSION?");
+		ImGui::Separator();
+		if (ImGui::Button("Yes"))
+		{
+			saveState();
+			window->close();
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("NO")) window->close();
+		ImGui::PopItemWidth();
+		ImGui::EndChild();
+		break;
 	case CAE::Application::Null:
+		mainWindow();
 		break;
 	case CAE::Application::CreateAsset:
 		createAssets();
@@ -308,11 +381,58 @@ void CAE::Application::drawUI()
 		viewLoadedAssets();
 		break;
 	case CAE::Application::WindowSettings:
-		ViewSettings();
+		viewSettings();
 		break;
 	default:
 		break;
 	}
+}
+
+void CAE::Application::clearBuffers()
+{
+	strcpy_s(buff, "");
+	strcpy_s(buff2, "");
+	strcpy_s(buff3, "");
+}
+
+void CAE::Application::loadState()
+{
+	if (ifstream open("config.json"); open.is_open())
+	{
+		json j;
+		open >> j;
+		std::string p = j["currentAsset"].get<std::string>();
+		useMouse = j["useMouse"].get<bool>();
+		open.close();
+		auto task = [this](const std::string path)
+		{
+			animAssets.push_back(new CAE::AnimationAsset{ path });
+			currAsset = *animAssets.begin();
+		};
+		std::thread(task, p).detach();
+	}
+	else
+		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
+}
+
+void CAE::Application::saveState()
+{
+
+	if (ofstream open("config.json"); open.is_open())
+	{
+		if (currAsset == nullptr)
+			Console::AppLog::addLog("what are you going to do", Console::error);
+		else
+		{
+			json j;
+			j["currentAsset"] = currAsset->assetPath;
+			j["useMouse"] = useMouse;
+			open << std::setw(4) << j;
+		}
+		open.close();
+	}
+	else
+		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
 }
 
 void CAE::Application::start()
@@ -325,7 +445,6 @@ void CAE::Application::start()
 		handleEvent(event);
 		currentSlice += lastFt;
 		ImGui::SFML::Update(*window, deltaClock.restart());
-		//ImGui::ShowDemoWindow();
 		ImGuiWindowFlags window_flags = 0;
 		window_flags |= ImGuiWindowFlags_MenuBar;
 		window_flags |= ImGuiWindowFlags_NoMove;
@@ -367,14 +486,17 @@ CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path)
 {
 	if (std::ifstream i(_path.data()); i.is_open())
 	{
+		space = 5;
 		json j;
 		i >> j;
 		try
 		{
-			name = j.at("name").get<std::string>();
-			width = j.at("width").get<int>();
-			height = j.at("height").get<int>();
-			texturePath = j.at("texturePath").get<std::string>();
+			auto info = j.at("defaultInfo");
+			name = info.at("name").get<std::string>();
+			width = info.at("width").get<int>();
+			height = info.at("height").get<int>();
+			texturePath = info.at("texturePath").get<std::string>();
+			space = info.at("space").get<int>();
 		}
 		catch (json::exception & e)
 		{
@@ -395,6 +517,7 @@ void CAE::AnimationAsset::buildTileSheet()
 	size_t id = 0;
 	int x = 100;
 	int y = 100;
+	sheetFile.clear();
 	for (auto i = 0; i < texture.getSize().y;)
 	{
 		for (auto j = 0; j < texture.getSize().x;)
@@ -404,11 +527,11 @@ void CAE::AnimationAsset::buildTileSheet()
 			spr.setTextureRect({ j, i, width, height });
 			spr.setPosition(x, y);
 			sheetFile.emplace_back(spr, PriorityOfDrawing::Medium, id);
-			x += 5 + width;
+			x += space + width;
 			j += width;
 			++id;
 		}
-		y += 5 + height;
+		y += space + height;
 		x = 100;
 		i += height;
 	}
