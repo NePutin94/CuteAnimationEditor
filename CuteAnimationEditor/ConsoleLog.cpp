@@ -154,7 +154,7 @@ Console::Log::Log(std::string s, logType t)
 	switch (t)
 	{
 	case logType::error:
-		color = ImVec4(1, 0.35, 0, 1);
+		color = ImVec4(1, 0.05, 0.1, 1);
 		l += " type:error]: ";
 		break;
 	case logType::info:

@@ -1,0 +1,9 @@
+{
+	"defaultInfo":{
+	"name":"test",
+	"texturePath":"Debug.png",
+	"width":100,
+	"height":100,
+	"space":5
+}
+}

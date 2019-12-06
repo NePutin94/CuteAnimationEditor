@@ -31,6 +31,7 @@ namespace CAE
 	{
 	private:
 		sf::Sprite sprite;
+		sf::FloatRect box;
 		PriorityOfDrawing priority;
 		size_t id;
 		bool _isSelected;
@@ -60,6 +61,8 @@ namespace CAE
 		int height;
 
 		void sort();
+		bool loadFromFile();
+		bool saveAsset(std::string);
 	public:
 		std::vector<Part> sheetFile;
 		AnimationAsset(std::string_view _path);
@@ -79,13 +82,17 @@ namespace CAE
 	{
 	private:
 		sf::RenderWindow* window;
-		sf::Clock deltaClock;
-		sf::Clock pressClock;
 		sf::View view;
-		sf::Vector2f mPrevPose;
-		sf::Vector2f mPrevMouse;
 		AnimationAsset* currAsset;
 		std::vector<AnimationAsset*> animAssets;
+
+		sf::Clock deltaClock;
+		sf::Clock pressClock;
+
+		sf::Vector2f mPrevPose;
+		sf::Vector2f mPrevMouse;
+		sf::Vector2f mPrevMouse2;
+		bool enter = false;
 		enum states
 		{
 			Null = 0,

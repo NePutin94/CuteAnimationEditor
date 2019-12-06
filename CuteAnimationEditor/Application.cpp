@@ -19,9 +19,17 @@ void CAE::Application::handleEvent(sf::Event& event)
 		{
 			if (event.key.code == sf::Keyboard::Space)
 				mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
+			if (event.key.code == sf::Mouse::Button::Left)
+			{
+
+			}
 		}
-		if (event.type == sf::Event::KeyReleased)
+		if (event.type == sf::Event::MouseButtonReleased)
 		{
+			if (event.key.code == sf::Mouse::Button::Left)
+			{
+				enter = false;
+			}
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
@@ -51,9 +59,88 @@ void CAE::Application::draw()
 		{
 			if ((*riter).isSelected())
 			{
-				sf::Vector2f m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window));
 				sf::Sprite& spr = (*riter).getSpite();
-				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
+				auto s = 15.f;
+				sf::CircleShape c;
+				c.setRadius(s);
+				c.setOrigin(s, s);
+				c.setFillColor(sf::Color::Red);
+				c.setPosition(spr.getPosition().x, spr.getPosition().y + spr.getTextureRect().height / 2);
+
+				sf::CircleShape c2;
+				c2.setRadius(s);
+				c2.setOrigin(s, s);
+				c2.setFillColor(sf::Color::Red);
+				c2.setPosition(spr.getPosition().x + spr.getTextureRect().width, spr.getPosition().y + spr.getTextureRect().height / 2);
+
+				sf::CircleShape c3;
+				c3.setRadius(s);
+				c3.setOrigin(s, s);
+				c3.setFillColor(sf::Color::Red);
+				c3.setPosition(spr.getPosition().x + spr.getTextureRect().width / 2, spr.getPosition().y);
+
+				sf::CircleShape c4;
+				c4.setRadius(s);
+				c4.setOrigin(s, s);
+				c4.setFillColor(sf::Color::Red);
+				c4.setPosition(spr.getPosition().x + spr.getTextureRect().width / 2, spr.getPosition().y + spr.getTextureRect().height);
+
+				sf::Vector2f m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+				sf::Vector2f mi_pos = (sf::Vector2f)sf::Mouse::getPosition(*window);
+
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Z))
+				{
+					if (c.getGlobalBounds().contains(m_pos))
+					{
+						enter = true;
+						if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+						{
+							auto delta = sf::Vector2i{ mi_pos - mPrevMouse2 };
+							auto prevRect = spr.getTextureRect();
+							spr.move(sf::Vector2f{ (float)delta.x, 0 });
+							spr.setTextureRect(sf::IntRect(prevRect.left + delta.x, prevRect.top, prevRect.width + delta.x * -1, prevRect.height));
+						}
+						mPrevMouse2 = mi_pos;
+					}
+					if (c2.getGlobalBounds().contains(m_pos))
+					{
+						enter = true;
+						if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+						{
+							auto delta = sf::Vector2i{ mi_pos - mPrevMouse2 };
+							auto prevRect = spr.getTextureRect();
+							spr.setTextureRect(sf::IntRect(prevRect.left, prevRect.top, prevRect.width + delta.x, prevRect.height));
+						}
+						mPrevMouse2 = mi_pos;
+					}
+					if (c3.getGlobalBounds().contains(m_pos))
+					{
+						enter = true;
+						if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+						{
+							auto delta = sf::Vector2i{ mi_pos - mPrevMouse2 };
+							auto prevRect = spr.getTextureRect();
+							spr.move(sf::Vector2f{ 0, (float)delta.y });
+							spr.setTextureRect(sf::IntRect(prevRect.left, prevRect.top + delta.y, prevRect.width, prevRect.height + delta.y * -1));
+						}
+						mPrevMouse2 = mi_pos;
+					}
+					if (c4.getGlobalBounds().contains(m_pos))
+					{
+						enter = true;
+						if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+						{
+							auto delta = sf::Vector2i{ mi_pos - mPrevMouse2 };
+							auto prevRect = spr.getTextureRect();
+							spr.setTextureRect(sf::IntRect(prevRect.left, prevRect.top, prevRect.width, prevRect.height + delta.y));
+						}
+						mPrevMouse2 = mi_pos;
+					}
+				}
+				else
+					mPrevMouse2 = { 0,0 };
+
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::X))
 				{
 					if (spr.getGlobalBounds().contains(m_pos))
 					{
@@ -67,7 +154,12 @@ void CAE::Application::draw()
 				}
 				else
 					mPrevMouse = { 0,0 };
+
 				window->draw(*riter);
+				window->draw(c);
+				window->draw(c2);
+				window->draw(c3);
+				window->draw(c4);
 			}
 			else
 				window->draw(*riter);
@@ -87,15 +179,18 @@ void CAE::Application::loadAssets()
 		{
 			auto task = [this](std::string copyBuffer)
 			{
-				animAssets.push_back(new CAE::AnimationAsset{ copyBuffer });
+				auto ptr = new CAE::AnimationAsset{ copyBuffer };
+				if (ptr->loadFromFile())
+					animAssets.push_back(ptr);
+				else
+					delete ptr;
 			};
 			std::string copy = buff;
-			std::thread(task, copy).detach(); //Dangerous
+			std::thread(task, copy).detach();
 			clearBuffers();
-			Console::AppLog::addLog("OK, Load", Console::logType::info);
 		}
 		else
-			Console::AppLog::addLog("cannot be loaded now", Console::logType::error);
+			Console::AppLog::addLog("Cannot be loaded now", Console::logType::error);
 	}
 	ImGui::EndChild();
 }
@@ -143,17 +238,21 @@ void CAE::Application::createAssets()
 	ImGui::InputText("Output file", buff3, IM_ARRAYSIZE(buff3));
 	static int w;
 	static int h;
+	static int s;
 	ImGui::InputInt("width", &w);
 	ImGui::InputInt("height", &h);
+	ImGui::InputInt("space", &s);
 	if (ImGui::Button("Create"))
 	{
 		ofstream out;
 		out.open(buff3);
 		json j;
-		j["name"] = buff;
-		j["texturePath"] = buff2;
-		j["width"] = w;
-		j["height"] = h;
+		auto& defaultInfo = j["defaultInfo"];
+		defaultInfo["name"] = buff;
+		defaultInfo["texturePath"] = buff2;
+		defaultInfo["width"] = w;
+		defaultInfo["height"] = h;
+		defaultInfo["space"] = s;
 		out << std::setw(4) << j;
 		out.close();
 		w = 0;
@@ -243,6 +342,8 @@ void CAE::Application::editor()
 			ImGui::TreePop();
 		}
 	}
+	else
+		ImGui::TextColored(ImVec4(1, 0, 0, 1), "The current asset is not selected");
 	ImGui::EndChild();
 }
 
@@ -294,16 +395,7 @@ void CAE::Application::saveAsset()
 		ImGui::InputText("File Path", buff, IM_ARRAYSIZE(buff));
 		if (ImGui::Button("Save"))
 		{
-			ofstream o(buff);
-			json j;
-			auto& info = j["defaultInfo"];
-			info["name"] = currAsset->name;
-			info["texturePath"] = currAsset->texturePath;
-			info["width"] = currAsset->width;
-			info["height"] = currAsset->height;
-			info["space"] = currAsset->space;
-			o << std::setw(4) << j;
-			o.close();
+			currAsset->saveAsset(buff);
 			clearBuffers();
 		}
 	}
@@ -406,8 +498,14 @@ void CAE::Application::loadState()
 		open.close();
 		auto task = [this](const std::string path)
 		{
-			animAssets.push_back(new CAE::AnimationAsset{ path });
-			currAsset = *animAssets.begin();
+			auto ptr = new CAE::AnimationAsset{ path };
+			if (ptr->loadFromFile())
+			{
+				animAssets.push_back(ptr);
+				currAsset = *animAssets.begin();
+			}
+			else
+				delete ptr;
 		};
 		std::thread(task, p).detach();
 	}
@@ -417,7 +515,6 @@ void CAE::Application::loadState()
 
 void CAE::Application::saveState()
 {
-
 	if (ofstream open("config.json"); open.is_open())
 	{
 		if (currAsset == nullptr)
@@ -482,9 +579,9 @@ void CAE::AnimationAsset::sort()
 	std::sort(sheetFile.begin(), sheetFile.end(), pred);
 }
 
-CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path)
+bool CAE::AnimationAsset::loadFromFile()
 {
-	if (std::ifstream i(_path.data()); i.is_open())
+	if (std::ifstream i(assetPath.data()); i.is_open())
 	{
 		space = 5;
 		json j;
@@ -505,12 +602,32 @@ CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path)
 		}
 		texture.loadFromFile(texturePath);
 		spr.setTexture(texture);
+
 		if (width != 0 && height != 0)
 			buildTileSheet();
+		return true;
 	}
 	else
 		Console::AppLog::addLog("File " + texturePath + " can't be opened!", Console::error);
+	return false;
 }
+
+bool CAE::AnimationAsset::saveAsset(std::string path)
+{
+	ofstream o(path);
+	json j;
+	auto& info = j["defaultInfo"];
+	info["name"] = name;
+	info["texturePath"] = texturePath;
+	info["width"] = width;
+	info["height"] = height;
+	info["space"] = space;
+	o << std::setw(4) << j;
+	o.close();
+	return true;
+}
+
+CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path) {}
 
 void CAE::AnimationAsset::buildTileSheet()
 {
