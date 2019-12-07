@@ -47,32 +47,27 @@ namespace CAE
 		operator sf::Drawable& () { return sprite; }
 	};
 
-	class AnimationAsset
+	class AnimationAsset : public sf::Sprite
 	{
 	private:
 		std::string texturePath;
 		std::string assetPath;
 		sf::Texture texture;
-		sf::Sprite spr;
 		std::string name;
 
-		int space;
 		int width;
 		int height;
 
-		void sort();
 		bool loadFromFile();
-		bool saveAsset(std::string);
+		bool saveAsset(std::string_view);
 	public:
-		std::vector<Part> sheetFile;
+		std::vector<sf::FloatRect> sheetFile;
 		AnimationAsset(std::string_view _path);
 
-		void buildTileSheet();
 		auto cbegin() const { return sheetFile.cbegin(); }
 		auto cend() const { return sheetFile.cend(); }
 		auto getName() const { return name; }
 		auto getPath() { return texturePath; }
-		const sf::Sprite& getSprite() const { return spr; }
 		std::pair<int, int> getWH() { return std::make_pair(width, height); }
 
 		friend class Application;
@@ -92,7 +87,6 @@ namespace CAE
 		sf::Vector2f mPrevPose;
 		sf::Vector2f mPrevMouse;
 		sf::Vector2f mPrevMouse2;
-		bool enter = false;
 		enum states
 		{
 			Null = 0,
@@ -113,7 +107,7 @@ namespace CAE
 		char buff3[256];
 		bool LogConsole;
 		bool useMouse;
-
+		bool creatorMode;
 		void handleEvent(sf::Event& event);
 		void draw();
 		void clearBuffers();
