@@ -27,6 +27,23 @@ namespace CAE
 		 "Highest"
 	};
 
+	struct ScaleNode
+	{
+		ScaleNode() = delete;
+		ScaleNode(sf::Vector2f pos, int _side = 0) : side(_side)
+		{
+			c.setRadius(5); 
+			c.setOrigin(5, 5);  
+			c.setPosition(pos);
+		}
+		sf::CircleShape c;
+		int side;
+		operator sf::Drawable& ()
+		{
+			return c;
+		}
+	};
+
 	class Part
 	{
 	private:
@@ -102,12 +119,16 @@ namespace CAE
 		float ftStep{ 1.f }, ftSlice{ 1.f };
 		float lastFt{ 1.f };
 		float currentSlice{ 0.f };
+
 		char buff[256];
 		char buff2[256];
 		char buff3[256];
+
 		bool LogConsole;
 		bool useMouse;
 		bool creatorMode;
+		bool pointSelected;
+
 		void handleEvent(sf::Event& event);
 		void draw();
 		void clearBuffers();

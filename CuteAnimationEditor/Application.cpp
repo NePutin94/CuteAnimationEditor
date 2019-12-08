@@ -23,7 +23,18 @@ void CAE::Application::handleEvent(sf::Event& event)
 		}
 		if (event.type == sf::Event::MouseButtonReleased)
 		{
-			if (event.key.code == sf::Mouse::Button::Left) {}
+
+			if (event.key.code == sf::Mouse::Button::Left)
+			{
+				pointSelected = false;
+			}
+		}
+		if (event.type == sf::Event::MouseButtonPressed)
+		{
+			if (event.key.code == sf::Mouse::Button::Left)
+			{
+
+			}
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
@@ -56,6 +67,7 @@ void CAE::Application::draw()
 			{
 				sf::RectangleShape r;
 				auto [x, y, w, h] = rect;
+				auto m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 				sf::VertexArray quad(sf::LinesStrip, 5);
 				quad[0].position = sf::Vector2f(x, y);
 				quad[1].position = sf::Vector2f(x + w, y);
@@ -65,6 +77,61 @@ void CAE::Application::draw()
 				for (int i = 0; i < 5; ++i)
 					quad[i].color = sf::Color::Red;
 				window->draw(quad);
+
+				std::vector<ScaleNode> points;
+				points.push_back(ScaleNode({ x + w / 2, y }));
+				points.push_back(ScaleNode({ x + w,y + h / 2 }, 1));
+				points.push_back(ScaleNode({ x + w / 2,y + h }, 2));
+				points.push_back(ScaleNode({ x,y + h / 2 }, 3));
+				
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
+				{
+					if (rect.contains(m_pos))
+					{
+						if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
+						{
+							auto delta = m_pos - mPrevMouse;
+							rect.left += delta.x;
+							rect.top += delta.y;
+						}
+						mPrevMouse = m_pos;
+					}
+				}
+				static int selectedPoint = -1;
+				for (auto& p : points)
+				{
+					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+					{
+						if (p.c.getGlobalBounds().contains(m_pos) || (pointSelected && p.side == selectedPoint))
+						{
+							pointSelected = true;
+							selectedPoint = p.side;
+							if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+							{
+								auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
+								switch (p.side)
+								{
+								case 0:
+									rect = sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1);
+									break;
+								case 1:
+									rect = sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height);
+									break;
+								case 2:
+									rect = sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y);
+									break;
+								case 3:
+									rect = sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height);
+									break;
+								}
+							}
+							mPrevMouse2 = m_pos;
+						}
+					}
+					else
+						mPrevMouse2 = { 0,0 };
+					window->draw(p);
+				}
 			}
 		}
 	}
@@ -265,17 +332,17 @@ void CAE::Application::drawMenuBar()
 	{
 		if (ImGui::BeginMenu("Assets"))
 		{
-			if (ImGui::MenuItem("Main Window",  NULL, state == states::Null))
+			if (ImGui::MenuItem("Main Window", NULL, state == states::Null))
 				state = states::Null;
-			if (ImGui::MenuItem("Load Asset",   NULL, state == states::LoadAsset))
+			if (ImGui::MenuItem("Load Asset", NULL, state == states::LoadAsset))
 				state = states::LoadAsset;
 			if (ImGui::MenuItem("Create Asset", NULL, state == states::CreateAsset))
 				state = states::CreateAsset;
-			if (ImGui::MenuItem("Save Asset",   NULL, state == states::SaveAsset))
+			if (ImGui::MenuItem("Save Asset", NULL, state == states::SaveAsset))
 				state = states::SaveAsset;
-			if (ImGui::MenuItem("Edit Asset",   NULL, state == states::Editor))
+			if (ImGui::MenuItem("Edit Asset", NULL, state == states::Editor))
 				state = states::Editor;
-			if (ImGui::MenuItem("Loaded Assets",NULL, state == states::loadedAssets))
+			if (ImGui::MenuItem("Loaded Assets", NULL, state == states::loadedAssets))
 				state = states::loadedAssets;
 			ImGui::EndMenu();
 		}
