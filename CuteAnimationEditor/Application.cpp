@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <algorithm>
 #include <future>
-
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -23,7 +22,6 @@ void CAE::Application::handleEvent(sf::Event& event)
 		}
 		if (event.type == sf::Event::MouseButtonReleased)
 		{
-
 			if (event.key.code == sf::Mouse::Button::Left)
 			{
 				pointSelected = false;
@@ -31,10 +29,25 @@ void CAE::Application::handleEvent(sf::Event& event)
 		}
 		if (event.type == sf::Event::MouseButtonPressed)
 		{
-			if (event.key.code == sf::Mouse::Button::Left)
-			{
+			if (event.key.code == sf::Mouse::Button::Left) {}
+		}
+		if (event.type == sf::Event::MouseWheelScrolled)
+		{
+			if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel) {}
+			else if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {}
 
+			auto prev = view.getSize();
+			if (event.mouseWheelScroll.delta < 0)
+			{
+				prev.x = prev.x * zoom;
+				prev.y = prev.y * zoom;
 			}
+			else
+			{
+				prev.x = prev.x / zoom;
+				prev.y = prev.y / zoom;
+			}
+			view.setSize(prev);
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
@@ -63,75 +76,12 @@ void CAE::Application::draw()
 		window->draw(*currAsset);
 		if (creatorMode)
 		{
-			for (auto& rect : currAsset->sheetFile)
+			for (auto& elem : currAsset->sheetFile)
 			{
-				sf::RectangleShape r;
-				auto [x, y, w, h] = rect;
-				auto m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
-				sf::VertexArray quad(sf::LinesStrip, 5);
-				quad[0].position = sf::Vector2f(x, y);
-				quad[1].position = sf::Vector2f(x + w, y);
-				quad[2].position = sf::Vector2f(x + w, y + h);
-				quad[3].position = sf::Vector2f(x, y + h);
-				quad[4].position = sf::Vector2f(x, y);
-				for (int i = 0; i < 5; ++i)
-					quad[i].color = sf::Color::Red;
-				window->draw(quad);
+				window->draw(elem.getVertex());
+				for (auto& node : elem.getNode())
+					window->draw(node);
 
-				std::vector<ScaleNode> points;
-				points.push_back(ScaleNode({ x + w / 2, y }));
-				points.push_back(ScaleNode({ x + w,y + h / 2 }, 1));
-				points.push_back(ScaleNode({ x + w / 2,y + h }, 2));
-				points.push_back(ScaleNode({ x,y + h / 2 }, 3));
-				
-				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
-				{
-					if (rect.contains(m_pos))
-					{
-						if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
-						{
-							auto delta = m_pos - mPrevMouse;
-							rect.left += delta.x;
-							rect.top += delta.y;
-						}
-						mPrevMouse = m_pos;
-					}
-				}
-				static int selectedPoint = -1;
-				for (auto& p : points)
-				{
-					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
-					{
-						if (p.c.getGlobalBounds().contains(m_pos) || (pointSelected && p.side == selectedPoint))
-						{
-							pointSelected = true;
-							selectedPoint = p.side;
-							if (mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
-							{
-								auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
-								switch (p.side)
-								{
-								case 0:
-									rect = sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1);
-									break;
-								case 1:
-									rect = sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height);
-									break;
-								case 2:
-									rect = sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y);
-									break;
-								case 3:
-									rect = sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height);
-									break;
-								}
-							}
-							mPrevMouse2 = m_pos;
-						}
-					}
-					else
-						mPrevMouse2 = { 0,0 };
-					window->draw(p);
-				}
 			}
 		}
 	}
@@ -140,6 +90,77 @@ void CAE::Application::draw()
 	window->display();
 }
 
+void CAE::Application::update()
+{
+	if (currAsset != nullptr)
+	{
+		if (creatorMode)
+		{
+			auto m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+			static ScaleNode* selectedNode = nullptr;
+			static Part* selectedPart = nullptr;
+			for (auto& elem : currAsset->sheetFile)
+			{
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
+				{
+					if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+					{
+						if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
+						{
+							auto delta = m_pos - mPrevMouse;
+							rect.left += delta.x;
+							rect.top += delta.y;
+							elem.setRect(rect);
+							selectedPart = &elem;
+						}
+					}
+				}
+				else
+					selectedPart = nullptr;
+
+				static int selectedPoint = -1;
+				for (auto& p : elem.getNode())
+				{
+					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+					{
+						if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
+						{
+							pointSelected = true;
+							selectedPoint = p.side;
+							selectedNode = &p;
+							if (auto rect = elem.getRect(); mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+							{
+								auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
+								switch (p.side)
+								{
+								case 0:
+									elem.setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
+									break;
+								case 1:
+									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
+									break;
+								case 2:
+									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
+									break;
+								case 3:
+									elem.setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
+									break;
+								}
+							}
+							mPrevMouse2 = m_pos;
+						}
+					}
+					else
+					{
+						mPrevMouse2 = { 0,0 };
+					}
+				}
+
+			}
+			mPrevMouse = m_pos;
+		}
+	}
+}
 void CAE::Application::loadAssets()
 {
 	ImGui::BeginChild("Load assets");
@@ -244,18 +265,19 @@ void CAE::Application::editor()
 		if (ImGui::TreeNode("Rectangle:"))
 		{
 			int i = 0;
-			for (auto& rect : currAsset->sheetFile)
+			for (auto& elem : currAsset->sheetFile)
 			{
 				ImGui::PushID(i);
-				ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, rect.left, rect.top, rect.width, rect.height);
+				auto r = elem.getRect();
+				ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, r.left, r.top, r.width, r.height);
 				if (ImGui::BeginPopupContextItem("change"))
 				{
-					auto changedValue = rect;
+					auto changedValue = r;
 					ImGui::DragFloat("#left", &changedValue.left, 0.5f, -FLT_MAX, FLT_MAX);
 					ImGui::DragFloat("#top", &changedValue.top, 0.5f, -FLT_MAX, FLT_MAX);
 					ImGui::DragFloat("#width", &changedValue.width, 0.5f, 0.f, FLT_MAX);
 					ImGui::DragFloat("#height", &changedValue.height, 0.5f, 0.f, FLT_MAX);
-					rect = changedValue;
+					elem.setRect(changedValue);
 					ImGui::EndPopup();
 				}
 				ImGui::PopID();
@@ -480,7 +502,7 @@ void CAE::Application::start()
 			drawUI();
 			ImGui::End();
 		}
-
+		update();
 		draw();
 		auto timePoint2(chrono::high_resolution_clock::now());
 		auto elapsedTime(timePoint2 - timePoint1);

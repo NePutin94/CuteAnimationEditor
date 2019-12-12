@@ -29,11 +29,11 @@ namespace CAE
 
 	struct ScaleNode
 	{
-		ScaleNode() = delete;
+		ScaleNode() = default;
 		ScaleNode(sf::Vector2f pos, int _side = 0) : side(_side)
 		{
-			c.setRadius(5); 
-			c.setOrigin(5, 5);  
+			c.setRadius(5);
+			c.setOrigin(5, 5);
 			c.setPosition(pos);
 		}
 		sf::CircleShape c;
@@ -47,21 +47,44 @@ namespace CAE
 	class Part
 	{
 	private:
-		sf::Sprite sprite;
-		sf::FloatRect box;
-		PriorityOfDrawing priority;
-		size_t id;
-		bool _isSelected;
+		sf::VertexArray quad;
+		std::array<ScaleNode, 4> node;
+		bool isSelected;
+		void update()
+		{
+			auto [x, y, w, h] = box;
+			quad[0].position = sf::Vector2f(x, y);
+			quad[1].position = sf::Vector2f(x + w, y);
+			quad[2].position = sf::Vector2f(x + w, y + h);
+			quad[3].position = sf::Vector2f(x, y + h);
+			quad[4].position = sf::Vector2f(x, y);
+			node[0].c.setPosition({ x + w / 2, y });
+			node[1].c.setPosition({ x + w,y + h / 2 });
+			node[2].c.setPosition({ x + w / 2,y + h });
+			node[3].c.setPosition({ x, y + h / 2 });
+		}
+		PriorityOfDrawing prior;
 	public:
-		Part(sf::Sprite s, PriorityOfDrawing p, size_t _id) : sprite(s), priority(p), _isSelected(false), id(_id) {}
-
-		void setPriority(PriorityOfDrawing p) { priority = p; }
-		sf::Sprite& getSpite() { return sprite; }
-		auto getPriority() { return priority; }
-		auto getID() { return id; }
-		bool& isSelected() { return _isSelected; }
-
-		operator sf::Drawable& () { return sprite; }
+		sf::FloatRect box;
+		Part(sf::FloatRect _rect) : box(_rect), prior(PriorityOfDrawing::Low), quad(sf::LinesStrip, 5)
+		{
+			auto [x, y, w, h] = box;
+			node[0] = ScaleNode({ x + w / 2, y }, 0);
+			node[1] = ScaleNode({ x + w,y + h / 2 }, 1);
+			node[2] = ScaleNode({ x + w / 2,y + h }, 2);
+			node[3] = ScaleNode({ x, y + h / 2 }, 3);
+			update();
+			for (int i = 0; i < 5; ++i)
+				quad[i].color = sf::Color::Red;
+		}
+		auto& getNode() { return node; }
+		auto& getVertex() { return quad; }
+		auto getRect() { return box; }
+		void setRect(sf::FloatRect rect)
+		{
+			box = rect;
+			update();
+		}
 	};
 
 	class AnimationAsset : public sf::Sprite
@@ -78,7 +101,7 @@ namespace CAE
 		bool loadFromFile();
 		bool saveAsset(std::string_view);
 	public:
-		std::vector<sf::FloatRect> sheetFile;
+		std::vector<Part> sheetFile;
 		AnimationAsset(std::string_view _path);
 
 		auto cbegin() const { return sheetFile.cbegin(); }
@@ -119,7 +142,7 @@ namespace CAE
 		float ftStep{ 1.f }, ftSlice{ 1.f };
 		float lastFt{ 1.f };
 		float currentSlice{ 0.f };
-
+		float zoom;
 		char buff[256];
 		char buff2[256];
 		char buff3[256];
@@ -131,6 +154,7 @@ namespace CAE
 
 		void handleEvent(sf::Event& event);
 		void draw();
+		void update();
 		void clearBuffers();
 		void loadState();
 		void saveState();
@@ -145,7 +169,7 @@ namespace CAE
 		void drawMenuBar();
 		void drawUI();
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false) { view.setSize(w.getDefaultView().getSize()); }
+		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false), zoom(1.5f) { view.setSize(w.getDefaultView().getSize()); }
 		~Application() { for (auto& it : animAssets)delete it; }
 
 		void start();
