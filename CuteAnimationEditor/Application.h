@@ -27,8 +27,11 @@ namespace CAE
 		 "Highest"
 	};
 
-	struct ScaleNode
+	class ScaleNode
 	{
+	public:
+		sf::CircleShape c;
+		int side;
 		ScaleNode() = default;
 		ScaleNode(sf::Vector2f pos, int _side = 0) : side(_side)
 		{
@@ -36,8 +39,6 @@ namespace CAE
 			c.setOrigin(5, 5);
 			c.setPosition(pos);
 		}
-		sf::CircleShape c;
-		int side;
 		operator sf::Drawable& ()
 		{
 			return c;
@@ -95,20 +96,17 @@ namespace CAE
 		sf::Texture texture;
 		std::string name;
 
-		int width;
-		int height;
-
 		bool loadFromFile();
 		bool saveAsset(std::string_view);
 	public:
 		std::vector<Part> sheetFile;
 		AnimationAsset(std::string_view _path);
-
+		~AnimationAsset() { saveAsset(assetPath); };
 		auto cbegin() const { return sheetFile.cbegin(); }
 		auto cend() const { return sheetFile.cend(); }
 		auto getName() const { return name; }
 		auto getPath() { return texturePath; }
-		std::pair<int, int> getWH() { return std::make_pair(width, height); }
+		std::pair<int, int> getWH() { return std::make_pair(texture.getSize().x, texture.getSize().y); }
 
 		friend class Application;
 	};
@@ -159,6 +157,44 @@ namespace CAE
 		void loadState();
 		void saveState();
 
+		auto makeGrid(sf::Vector2f sz)
+		{
+			sf::RenderTexture t;
+			t.create(currAsset->texture.getSize().x, currAsset->texture.getSize().y);
+			t.clear(sf::Color(0, 0, 0, 0));
+			auto deltaX = currAsset->texture.getSize().x / sz.x;
+			for (int i = 0; i < sz.x; ++i)
+			{
+				sf::Vertex line[] =
+				{
+					sf::Vertex(sf::Vector2f(i * deltaX, 0)),
+					sf::Vertex(sf::Vector2f(i * deltaX,  currAsset->texture.getSize().y))
+				};
+				t.draw(line, 2, sf::Lines);
+			}
+			auto deltaY = currAsset->texture.getSize().y / sz.y;
+			for (int i = 0; i < sz.y; ++i)
+			{
+				sf::Vertex line[] =
+				{
+					sf::Vertex(sf::Vector2f(0, i * deltaY)),
+					sf::Vertex(sf::Vector2f(currAsset->texture.getSize().x,  i * deltaY))
+				};
+				t.draw(line, 2, sf::Lines);
+			}
+			return sf::Image(t.getTexture().copyToImage());
+		}
+		sf::Texture grid;
+		sf::Sprite gridSpr;
+		void updateGrid(sf::Vector2f size)
+		{
+			if (currAsset != nullptr)
+			{
+				grid.loadFromImage(makeGrid(size));
+				gridSpr.setTexture(grid);
+				gridSpr.setPosition(currAsset->getPosition());
+			}
+		}
 		void loadAssets();
 		void viewSettings();
 		void createAssets();
@@ -169,7 +205,10 @@ namespace CAE
 		void drawMenuBar();
 		void drawUI();
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false), zoom(1.5f) { view.setSize(w.getDefaultView().getSize()); }
+		Application(sf::RenderWindow& w) : window(&w), state(Null), mPrevPose(), useMouse(false), zoom(1.5f)
+		{
+			view.setSize(w.getDefaultView().getSize());
+		}
 		~Application() { for (auto& it : animAssets)delete it; }
 
 		void start();

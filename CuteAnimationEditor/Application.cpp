@@ -11,26 +11,10 @@ void CAE::Application::handleEvent(sf::Event& event)
 			state = Exit;
 			break;
 		}
-		if (event.type == sf::Event::MouseButtonReleased)
-			mPrevPose = { 0,0 };
 
-		if (event.type == sf::Event::KeyPressed)
-		{
-			if (event.key.code == sf::Keyboard::Space)
-				mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
-			if (event.key.code == sf::Mouse::Button::Left) {}
-		}
 		if (event.type == sf::Event::MouseButtonReleased)
-		{
 			if (event.key.code == sf::Mouse::Button::Left)
-			{
 				pointSelected = false;
-			}
-		}
-		if (event.type == sf::Event::MouseButtonPressed)
-		{
-			if (event.key.code == sf::Mouse::Button::Left) {}
-		}
 		if (event.type == sf::Event::MouseWheelScrolled)
 		{
 			if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel) {}
@@ -39,19 +23,19 @@ void CAE::Application::handleEvent(sf::Event& event)
 			auto prev = view.getSize();
 			if (event.mouseWheelScroll.delta < 0)
 			{
-				prev.x = prev.x * zoom;
-				prev.y = prev.y * zoom;
+				prev.x *= zoom;
+				prev.y *= zoom;
 			}
 			else
 			{
-				prev.x = prev.x / zoom;
-				prev.y = prev.y / zoom;
+				prev.x /= zoom;
+				prev.y /= zoom;
 			}
 			view.setSize(prev);
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
-
+	
 	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 		if (useMouse)
 		{
@@ -59,12 +43,13 @@ void CAE::Application::handleEvent(sf::Event& event)
 			auto delta = mPrevPose - mCurrPose;
 			view.move(delta);
 		}
-
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Tilde) && pressClock.getElapsedTime().asMilliseconds() > 500)
 	{
 		LogConsole = !LogConsole;
 		pressClock.restart();
 	}
+
+	mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
 }
 
 void CAE::Application::draw()
@@ -81,9 +66,9 @@ void CAE::Application::draw()
 				window->draw(elem.getVertex());
 				for (auto& node : elem.getNode())
 					window->draw(node);
-
 			}
 		}
+		window->draw(gridSpr);
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
 	ImGui::SFML::Render(*window);
@@ -261,7 +246,7 @@ void CAE::Application::editor()
 	{
 		ImGui::Checkbox("Creator mode", &creatorMode);
 		if (ImGui::Button("add rect"))
-			currAsset->sheetFile.emplace_back(sf::FloatRect());
+			currAsset->sheetFile.emplace_back(sf::FloatRect(0, 0, 20, 20));
 		if (ImGui::TreeNode("Rectangle:"))
 		{
 			int i = 0;
@@ -321,7 +306,10 @@ void CAE::Application::viewLoadedAssets()
 				ImGui::Text("Texture Path: %s", a->getPath().c_str());
 				ImGui::Text("step on the axis Width: %i Height: %i", WH.first, WH.second);
 				if (ImGui::Button("select as current"))
+				{
 					currAsset = a;
+					updateGrid({ 80,80 });
+				}
 				ImGui::TreePop();
 			}
 			ImGui::Separator();
@@ -440,18 +428,22 @@ void CAE::Application::loadState()
 		std::string p = j["currentAsset"].get<std::string>();
 		useMouse = j["useMouse"].get<bool>();
 		open.close();
-		auto task = [this](const std::string path)
+		if (p != "Null")
 		{
-			auto ptr = new CAE::AnimationAsset{ path };
-			if (ptr->loadFromFile())
+			auto task = [this](const std::string path)
 			{
-				animAssets.push_back(ptr);
-				currAsset = *animAssets.begin();
-			}
-			else
-				delete ptr;
-		};
-		std::thread(task, p).detach();
+				auto ptr = new CAE::AnimationAsset{ path };
+				if (ptr->loadFromFile())
+				{
+					animAssets.push_back(ptr);
+					currAsset = *animAssets.begin();
+					updateGrid({80,80});
+				}
+				else
+					delete ptr;
+			};
+			std::thread(task, p).detach();
+		}
 	}
 	else
 		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
@@ -461,15 +453,10 @@ void CAE::Application::saveState()
 {
 	if (ofstream open("config.json"); open.is_open())
 	{
-		if (currAsset == nullptr)
-			Console::AppLog::addLog("what are you going to do", Console::error);
-		else
-		{
-			json j;
-			j["currentAsset"] = currAsset->assetPath;
-			j["useMouse"] = useMouse;
-			open << std::setw(4) << j;
-		}
+		json j;
+		j["currentAsset"] = (currAsset == nullptr) ? "Null" : currAsset->assetPath;
+		j["useMouse"] = useMouse;
+		open << std::setw(4) << j;
 		open.close();
 	}
 	else
@@ -522,9 +509,16 @@ bool CAE::AnimationAsset::loadFromFile()
 		{
 			auto info = j.at("defaultInfo");
 			name = info.at("name").get<std::string>();
-			width = info.at("width").get<int>();
-			height = info.at("height").get<int>();
 			texturePath = info.at("texturePath").get<std::string>();
+			for (auto& part : j["data"])
+			{
+				sf::FloatRect r{};
+				r.top = part["pos"]["y"].get<float>();
+				r.left = part["pos"]["x"].get<float>();
+				r.width = part["width"].get<float>();
+				r.height = part["height"].get<float>();
+				this->sheetFile.emplace_back(r);
+			}
 		}
 		catch (json::exception & e)
 		{
@@ -547,8 +541,16 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
 	auto& info = j["defaultInfo"];
 	info["name"] = name;
 	info["texturePath"] = texturePath;
-	info["width"] = width;
-	info["height"] = height;
+	auto& data = j["data"];
+	int count = 0;
+	for (auto& part : this->sheetFile)
+	{
+		data[count]["pos"]["x"] = part.box.left;
+		data[count]["pos"]["y"] = part.box.top;
+		data[count]["width"] = part.box.width;
+		data[count]["height"] = part.box.height;
+		++count;
+	}
 	o << std::setw(4) << j;
 	o.close();
 	return true;
