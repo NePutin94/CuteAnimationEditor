@@ -2,13 +2,14 @@
 #include <iomanip>
 #include <algorithm>
 #include <future>
+
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
 	{
 		if (event.type == sf::Event::Closed)
 		{
-			state = Exit;
+			state = states::Exit;
 			break;
 		}
 
@@ -35,7 +36,7 @@ void CAE::Application::handleEvent(sf::Event& event)
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
-	
+
 	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
 		if (useMouse)
 		{
@@ -61,14 +62,18 @@ void CAE::Application::draw()
 		window->draw(*currAsset);
 		if (creatorMode)
 		{
-			for (auto& elem : currAsset->sheetFile)
+			for (auto& elem : currAsset->groups)
 			{
-				window->draw(elem.getVertex());
-				for (auto& node : elem.getNode())
-					window->draw(node);
+				if (elem.isVisible())
+					for (auto& part : elem.parts)
+					{
+						window->draw(part.getVertex());
+						for (auto& node : part.getNode())
+							window->draw(node);
+					}
 			}
 		}
-		window->draw(gridSpr);
+		//window->draw(gridSpr);
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
 	ImGui::SFML::Render(*window);
@@ -84,66 +89,79 @@ void CAE::Application::update()
 			auto m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 			static ScaleNode* selectedNode = nullptr;
 			static Part* selectedPart = nullptr;
-			for (auto& elem : currAsset->sheetFile)
+			for (auto& group : currAsset->groups)
 			{
-				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
+				if (group.isVisible())
 				{
-					if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+					for (auto& elem : group.parts)
 					{
-						if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
+						if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
 						{
-							auto delta = m_pos - mPrevMouse;
-							rect.left += delta.x;
-							rect.top += delta.y;
-							elem.setRect(rect);
-							selectedPart = &elem;
-						}
-					}
-				}
-				else
-					selectedPart = nullptr;
-
-				static int selectedPoint = -1;
-				for (auto& p : elem.getNode())
-				{
-					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
-					{
-						if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
-						{
-							pointSelected = true;
-							selectedPoint = p.side;
-							selectedNode = &p;
-							if (auto rect = elem.getRect(); mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+							if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
 							{
-								auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
-								switch (p.side)
+								if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
 								{
-								case 0:
-									elem.setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
-									break;
-								case 1:
-									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
-									break;
-								case 2:
-									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
-									break;
-								case 3:
-									elem.setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
-									break;
+									auto delta = m_pos - mPrevMouse;
+									rect.left += delta.x;
+									rect.top += delta.y;
+									elem.setRect(rect);
+									selectedPart = &elem;
 								}
 							}
-							mPrevMouse2 = m_pos;
 						}
-					}
-					else
-					{
-						mPrevMouse2 = { 0,0 };
-					}
-				}
+						else
+							selectedPart = nullptr;
 
+						static int selectedPoint = -1;
+						for (auto& p : elem.getNode())
+						{
+							if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+							{
+								if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
+								{
+									pointSelected = true;
+									selectedPoint = p.side;
+									selectedNode = &p;
+									if (auto rect = elem.getRect(); mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
+									{
+										auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
+										switch (p.side)
+										{
+										case 0:
+											elem.setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
+											break;
+										case 1:
+											elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
+											break;
+										case 2:
+											elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
+											break;
+										case 3:
+											elem.setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
+											break;
+										}
+									}
+									mPrevMouse2 = m_pos;
+								}
+							}
+							else
+								mPrevMouse2 = { 0,0 };
+						}
+
+					}
+					mPrevMouse = m_pos;
+				}
 			}
-			mPrevMouse = m_pos;
 		}
+	}
+}
+void CAE::Application::updateGrid(sf::Vector2f size)
+{
+	if (currAsset != nullptr)
+	{
+		//grid.loadFromImage(makeGrid(size));
+		gridSpr.setTexture(grid);
+		gridSpr.setPosition(currAsset->getPosition());
 	}
 }
 void CAE::Application::loadAssets()
@@ -245,30 +263,62 @@ void CAE::Application::editor()
 	if (currAsset != nullptr)
 	{
 		ImGui::Checkbox("Creator mode", &creatorMode);
-		if (ImGui::Button("add rect"))
-			currAsset->sheetFile.emplace_back(sf::FloatRect(0, 0, 20, 20));
-		if (ImGui::TreeNode("Rectangle:"))
+		ImGui::Text(("Current asset name: " + currAsset->name).c_str());
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::Spacing();
+		ImGui::Text("anim groups: ");
+		ImGui::Spacing();
+		int unique_id = 1;
+		if (currAsset->groups.empty())
+			ImGui::TextColored(ImVec4(1, 0, 0, 1), "groups is empty");
+		else
 		{
-			int i = 0;
-			for (auto& elem : currAsset->sheetFile)
+			for (auto& group : currAsset->groups)
 			{
-				ImGui::PushID(i);
-				auto r = elem.getRect();
-				ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, r.left, r.top, r.width, r.height);
-				if (ImGui::BeginPopupContextItem("change"))
+				ImGui::PushID(unique_id);
+
+				if (ImGui::TreeNode(group.getName().c_str()))
 				{
-					auto changedValue = r;
-					ImGui::DragFloat("#left", &changedValue.left, 0.5f, -FLT_MAX, FLT_MAX);
-					ImGui::DragFloat("#top", &changedValue.top, 0.5f, -FLT_MAX, FLT_MAX);
-					ImGui::DragFloat("#width", &changedValue.width, 0.5f, 0.f, FLT_MAX);
-					ImGui::DragFloat("#height", &changedValue.height, 0.5f, 0.f, FLT_MAX);
-					elem.setRect(changedValue);
-					ImGui::EndPopup();
+					if (ImGui::Button("add rect"))
+						group.parts.emplace_back(sf::FloatRect(0, 0, 20, 20));
+
+					bool isVisible = group.isVisible();
+					ImGui::Checkbox("isVisible", &isVisible);
+					group.setVisible(isVisible);
+
+					int i = 0;
+					for (auto& part : group.parts)
+					{
+						ImGui::PushID(i);
+						auto r = part.getRect();
+						ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, r.left, r.top, r.width, r.height);
+						if (ImGui::BeginPopupContextItem("change"))
+						{
+							auto changedValue = r;
+							ImGui::DragFloat("#left", &changedValue.left, 0.5f, -FLT_MAX, FLT_MAX);
+							ImGui::DragFloat("#top", &changedValue.top, 0.5f, -FLT_MAX, FLT_MAX);
+							ImGui::DragFloat("#width", &changedValue.width, 0.5f, 0.f, FLT_MAX);
+							ImGui::DragFloat("#height", &changedValue.height, 0.5f, 0.f, FLT_MAX);
+							part.setRect(changedValue);
+							ImGui::EndPopup();
+						}
+						ImGui::PopID();
+						++i;
+					}
+					ImGui::TreePop();
 				}
 				ImGui::PopID();
-				++i;
+				++unique_id;
 			}
-			ImGui::TreePop();
+		}
+		ImGui::Spacing();
+		ImGui::Separator();
+		ImGui::InputText("new group name", buff, IM_ARRAYSIZE(buff));
+		if (ImGui::Button("add group"))
+		{
+			currAsset->groups.emplace_back(buff);
+			clearBuffers();
 		}
 	}
 	else
@@ -371,7 +421,7 @@ void CAE::Application::drawUI()
 	drawMenuBar();
 	switch (state)
 	{
-	case CAE::Application::Exit:
+	case CAE::Application::states::Exit:
 		ImGui::BeginChild("Note");
 		ImGui::PushItemWidth(50.f);
 		ImGui::Text("SAVE SESSION?");
@@ -386,25 +436,25 @@ void CAE::Application::drawUI()
 		ImGui::PopItemWidth();
 		ImGui::EndChild();
 		break;
-	case CAE::Application::Null:
+	case CAE::Application::states::Null:
 		mainWindow();
 		break;
-	case CAE::Application::CreateAsset:
+	case CAE::Application::states::CreateAsset:
 		createAssets();
 		break;
-	case CAE::Application::LoadAsset:
+	case CAE::Application::states::LoadAsset:
 		loadAssets();
 		break;
-	case CAE::Application::SaveAsset:
+	case CAE::Application::states::SaveAsset:
 		saveAsset();
 		break;
-	case CAE::Application::Editor:
+	case CAE::Application::states::Editor:
 		editor();
 		break;
-	case CAE::Application::loadedAssets:
+	case CAE::Application::states::loadedAssets:
 		viewLoadedAssets();
 		break;
-	case CAE::Application::WindowSettings:
+	case CAE::Application::states::WindowSettings:
 		viewSettings();
 		break;
 	default:
@@ -437,7 +487,7 @@ void CAE::Application::loadState()
 				{
 					animAssets.push_back(ptr);
 					currAsset = *animAssets.begin();
-					updateGrid({80,80});
+					updateGrid({ 80,80 });
 				}
 				else
 					delete ptr;
@@ -461,6 +511,34 @@ void CAE::Application::saveState()
 	}
 	else
 		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
+}
+
+auto CAE::Application::makeGrid(sf::Vector2f sz)
+{
+	sf::RenderTexture t;
+	t.create(currAsset->texture.getSize().x, currAsset->texture.getSize().y);
+	t.clear(sf::Color(0, 0, 0, 0));
+	auto deltaX = currAsset->texture.getSize().x / sz.x;
+	for (int i = 0; i < sz.x; ++i)
+	{
+		sf::Vertex line[] =
+		{
+			sf::Vertex(sf::Vector2f(i * deltaX, 0)),
+			sf::Vertex(sf::Vector2f(i * deltaX,  currAsset->texture.getSize().y))
+		};
+		t.draw(line, 2, sf::Lines);
+	}
+	auto deltaY = currAsset->texture.getSize().y / sz.y;
+	for (int i = 0; i < sz.y; ++i)
+	{
+		sf::Vertex line[] =
+		{
+			sf::Vertex(sf::Vector2f(0, i * deltaY)),
+			sf::Vertex(sf::Vector2f(currAsset->texture.getSize().x,  i * deltaY))
+		};
+		t.draw(line, 2, sf::Lines);
+	}
+	return sf::Image(t.getTexture().copyToImage());
 }
 
 void CAE::Application::start()
@@ -510,14 +588,10 @@ bool CAE::AnimationAsset::loadFromFile()
 			auto info = j.at("defaultInfo");
 			name = info.at("name").get<std::string>();
 			texturePath = info.at("texturePath").get<std::string>();
-			for (auto& part : j["data"])
+			for (auto& group : j.at("Groups"))
 			{
-				sf::FloatRect r{};
-				r.top = part["pos"]["y"].get<float>();
-				r.left = part["pos"]["x"].get<float>();
-				r.width = part["width"].get<float>();
-				r.height = part["height"].get<float>();
-				this->sheetFile.emplace_back(r);
+				groups.emplace_back(Group());
+				groups.back().load(group);
 			}
 		}
 		catch (json::exception & e)
@@ -541,15 +615,13 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
 	auto& info = j["defaultInfo"];
 	info["name"] = name;
 	info["texturePath"] = texturePath;
-	auto& data = j["data"];
-	int count = 0;
-	for (auto& part : this->sheetFile)
+
+	int i = 0;
+	auto& g = j["Groups"];
+	for (auto& group : groups)
 	{
-		data[count]["pos"]["x"] = part.box.left;
-		data[count]["pos"]["y"] = part.box.top;
-		data[count]["width"] = part.box.width;
-		data[count]["height"] = part.box.height;
-		++count;
+		group.save(g[i]);
+		++i;
 	}
 	o << std::setw(4) << j;
 	o.close();
