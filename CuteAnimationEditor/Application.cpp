@@ -82,79 +82,13 @@ void CAE::Application::draw()
 
 void CAE::Application::update()
 {
+	m_prevPos = m_pos;
+	m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 	if (currAsset != nullptr)
-	{
 		if (creatorMode)
-		{
-			auto m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
-			static ScaleNode* selectedNode = nullptr;
-			static Part* selectedPart = nullptr;
-			for (auto& group : currAsset->groups)
-			{
-				if (group.isVisible())
-				{
-					for (auto& elem : group.parts)
-					{
-						if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
-						{
-							if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
-							{
-								if (mPrevMouse.x != 0 && mPrevMouse.y != 0)
-								{
-									auto delta = m_pos - mPrevMouse;
-									rect.left += delta.x;
-									rect.top += delta.y;
-									elem.setRect(rect);
-									selectedPart = &elem;
-								}
-							}
-						}
-						else
-							selectedPart = nullptr;
-
-						static int selectedPoint = -1;
-						for (auto& p : elem.getNode())
-						{
-							if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
-							{
-								if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
-								{
-									pointSelected = true;
-									selectedPoint = p.side;
-									selectedNode = &p;
-									if (auto rect = elem.getRect(); mPrevMouse2.x != 0 && mPrevMouse2.y != 0)
-									{
-										auto delta = sf::Vector2f{ m_pos - mPrevMouse2 };
-										switch (p.side)
-										{
-										case 0:
-											elem.setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
-											break;
-										case 1:
-											elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
-											break;
-										case 2:
-											elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
-											break;
-										case 3:
-											elem.setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
-											break;
-										}
-									}
-									mPrevMouse2 = m_pos;
-								}
-							}
-							else
-								mPrevMouse2 = { 0,0 };
-						}
-
-					}
-					mPrevMouse = m_pos;
-				}
-			}
-		}
-	}
+			editorUpdate();
 }
+
 void CAE::Application::updateGrid(sf::Vector2f size)
 {
 	if (currAsset != nullptr)
@@ -162,6 +96,69 @@ void CAE::Application::updateGrid(sf::Vector2f size)
 		//grid.loadFromImage(makeGrid(size));
 		gridSpr.setTexture(grid);
 		gridSpr.setPosition(currAsset->getPosition());
+	}
+}
+void CAE::Application::editorUpdate()
+{
+	static ScaleNode* selectedNode = nullptr;
+	static Part* selectedPart = nullptr;
+	for (auto& group : currAsset->groups)
+	{
+		if (group.isVisible())
+		{
+			for (auto& elem : group.parts)
+			{
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
+				{
+					if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+					{
+						if (m_prevPos.x != 0 && m_prevPos.y != 0)
+						{
+							auto delta = m_pos - m_prevPos;
+							rect.left += delta.x;
+							rect.top += delta.y;
+							elem.setRect(rect);
+							selectedPart = &elem;
+						}
+					}
+				}
+				else
+					selectedPart = nullptr;
+
+				static int selectedPoint = -1;
+				for (auto& p : elem.getNode())
+				{
+					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+					{
+						if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
+						{
+							pointSelected = true;
+							selectedPoint = p.side;
+							selectedNode = &p;
+							if (auto rect = elem.getRect(); m_prevPos.x != 0 && m_prevPos.y != 0)
+							{
+								auto delta = sf::Vector2f{ m_pos - m_prevPos };
+								switch (p.side)
+								{
+								case 0:
+									elem.setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
+									break;
+								case 1:
+									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
+									break;
+								case 2:
+									elem.setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
+									break;
+								case 3:
+									elem.setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
+									break;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 void CAE::Application::loadAssets()
@@ -576,56 +573,3 @@ void CAE::Application::start()
 
 	}
 }
-
-bool CAE::AnimationAsset::loadFromFile()
-{
-	if (std::ifstream i(assetPath.data()); i.is_open())
-	{
-		json j;
-		i >> j;
-		try
-		{
-			auto info = j.at("defaultInfo");
-			name = info.at("name").get<std::string>();
-			texturePath = info.at("texturePath").get<std::string>();
-			for (auto& group : j.at("Groups"))
-			{
-				groups.emplace_back(Group());
-				groups.back().load(group);
-			}
-		}
-		catch (json::exception & e)
-		{
-			std::string str = e.what();
-			Console::AppLog::addLog("Json throw exception, message: " + str, Console::error);
-		}
-		texture.loadFromFile(texturePath);
-		setTexture(texture);
-		return true;
-	}
-	else
-		Console::AppLog::addLog("File " + texturePath + " can't be opened!", Console::error);
-	return false;
-}
-
-bool CAE::AnimationAsset::saveAsset(std::string_view path)
-{
-	ofstream o(path.data());
-	json j;
-	auto& info = j["defaultInfo"];
-	info["name"] = name;
-	info["texturePath"] = texturePath;
-
-	int i = 0;
-	auto& g = j["Groups"];
-	for (auto& group : groups)
-	{
-		group.save(g[i]);
-		++i;
-	}
-	o << std::setw(4) << j;
-	o.close();
-	return true;
-}
-
-CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path) {}
