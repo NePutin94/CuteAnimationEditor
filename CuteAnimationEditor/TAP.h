@@ -4,18 +4,19 @@
 
 #pragma once
 #include <SFML/Graphics.hpp>
-
+#include "AnimationAsset.h"
 namespace CAE
 {
 	enum AnimationState { APlay, APause, AEnd };
+
 	class Animation
 	{
 	public:
 		std::string    name;
-		sf::IntRect    rect;
+		//sf::IntRect    rect;
 		sf::Vector2f   origin;
 		AnimationState state;
-		std::vector<sf::IntRect> frames;
+		std::vector<sf::FloatRect> frames;
 		float frame;
 		float frameCount;
 		float speed;
@@ -27,42 +28,66 @@ namespace CAE
 			frame = 0;
 			frameCount = 0;
 			origin = { 0,0 };
-			rect = { 0,0,0,0 };
+			//rect = { 0,0,0,0 };
 			scale = 0.f;
 			speed = 0.01f;
 		}
-		virtual sf::IntRect& tick(float time) = 0;
+		virtual sf::FloatRect& tick(float time) = 0;
 	};
 
 	class CaeAnimation : public Animation
 	{
 	private:
-		sf::IntRect rect;
+		//sf::IntRect rect;
 		sf::Vector2f Center;
 	public:
-		CaeAnimation() { frame = 0; scale = 0;  speed = 0; }
+		CaeAnimation() = default;
 
-		sf::IntRect& tick(float time) override
+		sf::FloatRect& tick(float time) override
 		{
-
-			int widht = rect.width;
-			int height = rect.height;
-			int top = rect.top;
-			int left = rect.left;
-			frame += speed * time;
-			if (frame > 2) frame = 0;
-			if (int(frame) >= 1)
-				int z = 5;
-			sf::IntRect x(widht * int(frame), top, widht, height);
-			return x;
-
+			frame += speed;
+			if (frame > frameCount)
+			{
+				frame = 0;
+				if (!looped)
+					state = AEnd;
+			}
+			origin.x = frames[static_cast<int>(frame)].width / 2;
+			origin.y = frames[static_cast<int>(frame)].height;
+			return frames[static_cast<int>(frame)];
 		}
 	};
 
-	class TAP ///Tiny Animation Player
+	class TAP : public std::list<CaeAnimation>///Tiny Animation Player
 	{
 	private:
+		CaeAnimation* currAnim;
 	public:
+		TAP() {}
+
+		void setCurrentAnim(CaeAnimation& anim) { currAnim = &anim;}
+
+		bool hasAnimation() { return currAnim != nullptr; }
+		sf::FloatRect animUpdate()
+		{
+			return (hasAnimation()) ? currAnim->tick(1) : sf::FloatRect{0,0,0,0};
+		}
+		void parseAnimationAssets(std::vector<Group> groups) 
+		{
+			for (auto& group : groups)
+			{
+				CaeAnimation anim;
+				anim.name = group.getName();
+				anim.frameCount = group.parts.size();
+				for (auto& part : group.parts)
+				{
+					anim.frames.push_back(part.getRect());
+				}
+				this->emplace_back(anim);
+				if (this->empty())
+					currAnim = &(*this->begin());
+			}
+		}
 	};
 }
 

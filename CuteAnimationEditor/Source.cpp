@@ -4,7 +4,7 @@ using namespace std;
 
 int main()
 {
-	sf::RenderWindow window(sf::VideoMode(1600, 800), "CAE");
+	sf::RenderWindow window(sf::VideoMode(1800, 900), "CAE");
 	ImGui::SFML::Init(window, true);
 
 	CAE::Application app(window);

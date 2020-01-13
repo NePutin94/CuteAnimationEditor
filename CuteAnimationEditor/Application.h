@@ -1,5 +1,6 @@
 #pragma once
 #include "AnimationAsset.h"
+#include "TAP.h"
 
 namespace CAE
 {
@@ -24,16 +25,22 @@ namespace CAE
 		sf::View view;
 		sf::Clock deltaClock;
 		sf::Clock pressClock;
+		sf::Clock attTimer;
 		sf::Texture grid;
 		sf::Sprite gridSpr;
+		sf::Texture t;
+		sf::Sprite attention;
 		sf::Vector2f m_pos;
 		sf::Vector2f m_prevPos;
 		sf::Vector2f mPrevPose;
 
+		TAP animPlayer;
+
 		float ftStep{ 1.f }, ftSlice{ 1.f };
 		float lastFt{ 1.f };
 		float currentSlice{ 0.f };
-		float zoom;
+		float scaleFactor;
+		int   scaleSign;
 		char buff[256];
 		char buff2[256];
 		char buff3[256];
@@ -49,10 +56,12 @@ namespace CAE
 		void loadState();
 		void saveState();
 
+		void viewUpdated();
 		auto makeGrid(sf::Vector2f sz);
 		void updateGrid(sf::Vector2f size);
 		void editorUpdate();
 		void loadAssets();
+		void tapWindow();
 		void viewSettings();
 		void createAssets();
 		void editor();
@@ -62,11 +71,14 @@ namespace CAE
 		void drawMenuBar();
 		void drawUI();
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), zoom(1.5f)
+		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0)
 		{
+			t.loadFromFile("attention.png");
+			attention.setTexture(t);
 			view.setSize(w.getDefaultView().getSize());
+			attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}
-		~Application() { for (auto& it : animAssets)delete it; }
+		~Application() { for (auto& it : animAssets) delete it; }
 
 		void start();
 	};

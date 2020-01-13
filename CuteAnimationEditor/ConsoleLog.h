@@ -5,6 +5,7 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <SFML/Graphics.hpp>
 using namespace std;
 namespace CAE
 {
@@ -53,7 +54,7 @@ namespace CAE
 			static bool ScrollToBottom; ///< Flag, true if the scrollbar
 			static std::vector<std::string> current_input;
 			static vector<Log> Buffer;
-
+			static bool newLog;
 		public:
 			AppLog() = default;
 			~AppLog() { saveLog("Data/log.txt"); }
@@ -62,8 +63,8 @@ namespace CAE
 				Buffer.clear();
 				Buffer.shrink_to_fit();
 			}
-
-			static void addLog(Log log) { Buffer.push_back(log); }
+			static bool hasNewLog() { bool prev = newLog; newLog = false; return prev; }
+			static void addLog(Log log) { Buffer.push_back(log); newLog = true; }
 			static void addLog(std::string s, logType t)
 			{
 				if (!Buffer.empty())
@@ -73,6 +74,7 @@ namespace CAE
 				}
 				else
 					Buffer.emplace_back(s, t);
+				newLog = true;
 			}
 			static void saveLog(std::string_view path);
 			static void Draw(const char* title, bool* p_open);

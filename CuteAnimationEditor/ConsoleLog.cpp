@@ -7,7 +7,7 @@ using namespace CAE;
 vector<Console::Log>       Console::AppLog::Buffer = {};
 bool                       Console::AppLog::ScrollToBottom = 0;
 std::vector<std::string>   Console::AppLog::current_input = {};
-
+bool Console::AppLog::newLog = false;
 void Console::AppLog::saveLog(std::string_view path)
 {
 	std::ofstream out;

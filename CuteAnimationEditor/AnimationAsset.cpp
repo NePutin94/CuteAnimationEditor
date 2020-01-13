@@ -1,9 +1,10 @@
 #include "AnimationAsset.h"
 #include <iomanip>
 
+
 bool CAE::AnimationAsset::loadFromFile()
 {
-	if (std::ifstream i(assetPath.data()); i.is_open())
+	if (std::ifstream i(assetPath.data(), ifstream::in); i.is_open())
 	{
 		json j;
 		i >> j;
@@ -28,7 +29,7 @@ bool CAE::AnimationAsset::loadFromFile()
 		return true;
 	}
 	else
-		Console::AppLog::addLog("File " + texturePath + " can't be opened!", Console::error);
+		Console::AppLog::addLog("File " + assetPath + "can't be opened!", Console::error);
 	return false;
 }
 

@@ -24,15 +24,18 @@ void CAE::Application::handleEvent(sf::Event& event)
 			auto prev = view.getSize();
 			if (event.mouseWheelScroll.delta < 0)
 			{
-				prev.x *= zoom;
-				prev.y *= zoom;
+				prev.x *= scaleFactor;
+				prev.y *= scaleFactor;
+				scaleSign = 1;
 			}
 			else
 			{
-				prev.x /= zoom;
-				prev.y /= zoom;
+				prev.x /= scaleFactor;
+				prev.y /= scaleFactor;
+				scaleSign = -1;
 			}
 			view.setSize(prev);
+			viewUpdated();
 		}
 		ImGui::SFML::ProcessEvent(event);
 	}
@@ -76,6 +79,9 @@ void CAE::Application::draw()
 		//window->draw(gridSpr);
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
+	if (attTimer.getElapsedTime() < sf::seconds(2))
+		window->draw(attention);
+
 	ImGui::SFML::Render(*window);
 	window->display();
 }
@@ -84,6 +90,8 @@ void CAE::Application::update()
 {
 	m_prevPos = m_pos;
 	m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+	if (Console::AppLog::hasNewLog())
+		attTimer.restart();
 	if (currAsset != nullptr)
 		if (creatorMode)
 			editorUpdate();
@@ -161,6 +169,8 @@ void CAE::Application::editorUpdate()
 		}
 	}
 }
+#include <filesystem>
+namespace fs = std::filesystem;
 void CAE::Application::loadAssets()
 {
 	ImGui::BeginChild("Load assets");
@@ -169,22 +179,69 @@ void CAE::Application::loadAssets()
 	{
 		if (buff != NULL)
 		{
-			auto task = [this](std::string copyBuffer)
-			{
-				auto ptr = new CAE::AnimationAsset{ copyBuffer };
-				if (ptr->loadFromFile())
-					animAssets.push_back(ptr);
-				else
-					delete ptr;
-			};
 			std::string copy = buff;
-			std::thread(task, copy).detach();
-			clearBuffers();
+			if (fs::exists(copy))
+			{
+				auto task = [this](std::string copyBuffer)
+				{
+					auto ptr = new CAE::AnimationAsset{ copyBuffer };
+					if (ptr->loadFromFile())
+						animAssets.push_back(ptr);
+					else
+						delete ptr;
+				};
+
+				std::thread(task, copy).detach();
+				clearBuffers();
+			}
+			else
+				Console::AppLog::addLog("File does not exist!", Console::error);
 		}
 		else
 			Console::AppLog::addLog("Cannot be loaded now", Console::logType::error);
 	}
 	ImGui::EndChild();
+}
+
+void CAE::Application::tapWindow()
+{
+	auto io = ImGui::GetIO();
+	ImVec2 window_pos = ImVec2(io.DisplaySize.x - 1.f - io.DisplaySize.x / 3, io.DisplaySize.y - 1 - window->getSize().y / 3);
+	ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x / 3, io.DisplaySize.y / 3));
+	ImGuiWindowFlags window_flags = 0;
+
+	window_flags |= ImGuiWindowFlags_NoMove;
+	window_flags |= ImGuiWindowFlags_NoResize;
+	if (!ImGui::Begin("TAP window", NULL, window_flags))
+	{
+		window_pos.y = io.DisplaySize.y - 21;
+		ImGui::SetWindowPos(window_pos);
+		ImGui::End();
+	}
+	else
+	{
+		ImGui::SetWindowPos(window_pos, ImGuiCond_Always);
+		if (animPlayer.empty())
+		{
+			if (ImGui::Button("Parse Asset"))
+				animPlayer.parseAnimationAssets(currAsset->groups);
+		}
+		else
+		{
+			if (!animPlayer.hasAnimation())
+			{
+				for (auto& anim : animPlayer)
+					if (ImGui::Selectable(anim.name.c_str()))
+						animPlayer.setCurrentAnim(anim);
+			}
+			else
+			{
+				sf::FloatRect rect = animPlayer.animUpdate();
+				ImGui::Image(*currAsset->getTexture(), sf::Vector2f{ 100,100 }, rect);
+			}
+		}
+		ImGui::End();
+	}
 }
 
 void CAE::Application::viewSettings()
@@ -228,12 +285,6 @@ void CAE::Application::createAssets()
 	ImGui::InputText("Name", buff, IM_ARRAYSIZE(buff));
 	ImGui::InputText("Texture path", buff2, IM_ARRAYSIZE(buff2));
 	ImGui::InputText("Output file", buff3, IM_ARRAYSIZE(buff3));
-	static int w;
-	static int h;
-	static int s;
-	ImGui::InputInt("width", &w);
-	ImGui::InputInt("height", &h);
-	ImGui::InputInt("space", &s);
 	if (ImGui::Button("Create"))
 	{
 		ofstream out;
@@ -242,13 +293,9 @@ void CAE::Application::createAssets()
 		auto& defaultInfo = j["defaultInfo"];
 		defaultInfo["name"] = buff;
 		defaultInfo["texturePath"] = buff2;
-		defaultInfo["width"] = w;
-		defaultInfo["height"] = h;
-		defaultInfo["space"] = s;
+		j["Groups"];
 		out << std::setw(4) << j;
 		out.close();
-		w = 0;
-		h = 0;
 		clearBuffers();
 	}
 	ImGui::EndChild();
@@ -256,7 +303,7 @@ void CAE::Application::createAssets()
 
 void CAE::Application::editor()
 {
-	ImGui::BeginChild("Editor");
+	ImGui::BeginChild("Editor", ImVec2(window->getSize().x / 3, window->getSize().y / 2), true);
 	if (currAsset != nullptr)
 	{
 		ImGui::Checkbox("Creator mode", &creatorMode);
@@ -281,6 +328,7 @@ void CAE::Application::editor()
 						group.parts.emplace_back(sf::FloatRect(0, 0, 20, 20));
 
 					bool isVisible = group.isVisible();
+		
 					ImGui::Checkbox("isVisible", &isVisible);
 					group.setVisible(isVisible);
 
@@ -317,6 +365,7 @@ void CAE::Application::editor()
 			currAsset->groups.emplace_back(buff);
 			clearBuffers();
 		}
+		tapWindow();
 	}
 	else
 		ImGui::TextColored(ImVec4(1, 0, 0, 1), "The current asset is not selected");
@@ -420,17 +469,23 @@ void CAE::Application::drawUI()
 	{
 	case CAE::Application::states::Exit:
 		ImGui::BeginChild("Note");
-		ImGui::PushItemWidth(50.f);
-		ImGui::Text("SAVE SESSION?");
-		ImGui::Separator();
-		if (ImGui::Button("Yes"))
+		ImGui::OpenPopup("Save?");
+		if (ImGui::BeginPopupModal("Save?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 		{
-			saveState();
-			window->close();
+			ImGui::Text("SAVE SESSION?");
+			ImGui::Separator();
+
+			if (ImGui::Button("Yes", ImVec2(140, 0)))
+			{
+				saveState();
+				window->close();
+			}
+			ImGui::SetItemDefaultFocus();
+			ImGui::SameLine();
+			if (ImGui::Button("Cancel", ImVec2(140, 0))) { window->close(); }
+			ImGui::EndPopup();
+
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("NO")) window->close();
-		ImGui::PopItemWidth();
 		ImGui::EndChild();
 		break;
 	case CAE::Application::states::Null:
@@ -472,25 +527,34 @@ void CAE::Application::loadState()
 	{
 		json j;
 		open >> j;
-		std::string p = j["currentAsset"].get<std::string>();
-		useMouse = j["useMouse"].get<bool>();
-		open.close();
-		if (p != "Null")
+		try
 		{
-			auto task = [this](const std::string path)
+			std::string p = j.at("currentAsset").get<std::string>();
+			useMouse = j.at("useMouse").get<bool>();
+			creatorMode = j.at("creatorMode").get<bool>();
+			if (p != "Null")
 			{
-				auto ptr = new CAE::AnimationAsset{ path };
-				if (ptr->loadFromFile())
+				auto task = [this](const std::string path)
 				{
-					animAssets.push_back(ptr);
-					currAsset = *animAssets.begin();
-					updateGrid({ 80,80 });
-				}
-				else
-					delete ptr;
-			};
-			std::thread(task, p).detach();
+					auto ptr = new CAE::AnimationAsset{ path };
+					if (ptr->loadFromFile())
+					{
+						animAssets.push_back(ptr);
+						currAsset = *animAssets.begin();
+						updateGrid({ 80,80 });
+					}
+					else
+						delete ptr;
+				};
+				std::thread(task, p).detach();
+			}
 		}
+		catch (json::exception & e)
+		{
+			std::string str = e.what();
+			Console::AppLog::addLog("Json throw exception, message: " + str, Console::error);
+		}
+		open.close();
 	}
 	else
 		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
@@ -500,14 +564,25 @@ void CAE::Application::saveState()
 {
 	if (ofstream open("config.json"); open.is_open())
 	{
-		json j;
-		j["currentAsset"] = (currAsset == nullptr) ? "Null" : currAsset->assetPath;
-		j["useMouse"] = useMouse;
-		open << std::setw(4) << j;
+		if (currAsset != nullptr)
+		{
+			json j;
+			j["currentAsset"] = currAsset->assetPath;
+			j["useMouse"] = useMouse;
+			j["creatorMode"] = creatorMode;
+			open << std::setw(4) << j;
+		}
 		open.close();
 	}
 	else
 		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
+}
+
+void CAE::Application::viewUpdated()
+{
+	attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+	auto scale = (scaleSign > 0) ? attention.getScale().x * scaleFactor : attention.getScale().x / scaleFactor;
+	attention.setScale({ scale, scale });
 }
 
 auto CAE::Application::makeGrid(sf::Vector2f sz)
@@ -552,6 +627,7 @@ void CAE::Application::start()
 		window_flags |= ImGuiWindowFlags_MenuBar;
 		window_flags |= ImGuiWindowFlags_NoMove;
 		window_flags |= ImGuiWindowFlags_NoResize;
+		window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
 		auto io = ImGui::GetIO();
 		ImVec2 window_pos = ImVec2(io.DisplaySize.x - 1.f, 1.f);
 		ImVec2 window_pos_pivot = ImVec2(1.0f, 0.0f);
