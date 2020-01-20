@@ -26,23 +26,21 @@ namespace CAE
 	};
 
 
-	class ScaleNode
+	class ScaleNode : public sf::CircleShape
 	{
 	public:
-		sf::CircleShape c;
 		int side;
 
 		ScaleNode() = default;
 		ScaleNode(sf::Vector2f pos, int _side = 0) : side(_side)
 		{
-			c.setRadius(5);
-			c.setOrigin(5, 5);
-			c.setPosition(pos);
+			updateRadius(5);
+			setPosition(pos);
 		}
-
-		operator sf::Drawable& ()
+		void updateRadius(float r)
 		{
-			return c;
+			setRadius(r);
+			setOrigin(r, r);
 		}
 	};
 
@@ -61,7 +59,7 @@ namespace CAE
 		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
 		auto getRect() { return box; }
-
+		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect)
 		{
 			box = rect;

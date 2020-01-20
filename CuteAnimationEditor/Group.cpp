@@ -8,10 +8,10 @@ void CAE::Part::update()
 	quad[2].position = sf::Vector2f(x + w, y + h);
 	quad[3].position = sf::Vector2f(x, y + h);
 	quad[4].position = sf::Vector2f(x, y);
-	node[0].c.setPosition({ x + w / 2, y });
-	node[1].c.setPosition({ x + w,y + h / 2 });
-	node[2].c.setPosition({ x + w / 2,y + h });
-	node[3].c.setPosition({ x, y + h / 2 });
+	node[0].setPosition({ x + w / 2, y });
+	node[1].setPosition({ x + w,y + h / 2 });
+	node[2].setPosition({ x + w / 2,y + h });
+	node[3].setPosition({ x, y + h / 2 });
 }
 
 CAE::Part::Part(sf::FloatRect _rect) : box(_rect), prior(PriorityOfDrawing::Low), quad(sf::LinesStrip, 5)

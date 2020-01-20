@@ -13,7 +13,6 @@ namespace CAE
 	{
 	public:
 		std::string    name;
-		//sf::IntRect    rect;
 		sf::Vector2f   origin;
 		AnimationState state;
 		std::vector<sf::FloatRect> frames;
@@ -38,14 +37,13 @@ namespace CAE
 	class CaeAnimation : public Animation
 	{
 	private:
-		//sf::IntRect rect;
 		sf::Vector2f Center;
 	public:
 		CaeAnimation() = default;
 
 		sf::FloatRect& tick(float time) override
 		{
-			frame += speed;
+			frame += speed * time;
 			if (frame > frameCount)
 			{
 				frame = 0;
@@ -63,17 +61,23 @@ namespace CAE
 	private:
 		CaeAnimation* currAnim;
 	public:
-		TAP() {}
+		TAP() = default;
 
 		void setCurrentAnim(CaeAnimation& anim) { currAnim = &anim;}
-
-		bool hasAnimation() { return currAnim != nullptr; }
-		sf::FloatRect animUpdate()
-		{
-			return (hasAnimation()) ? currAnim->tick(1) : sf::FloatRect{0,0,0,0};
+		auto getCurrentAnimation() {
+			return currAnim;
 		}
+		bool hasAnimation() { return currAnim != nullptr; }
+
+		sf::FloatRect animUpdate(float t)
+		{
+			return (hasAnimation()) ? currAnim->tick(t) : sf::FloatRect{0,0,0,0};
+		}
+
 		void parseAnimationAssets(std::vector<Group> groups) 
 		{
+			clear();
+			currAnim = nullptr;
 			for (auto& group : groups)
 			{
 				CaeAnimation anim;

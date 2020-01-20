@@ -3,6 +3,14 @@
 #include <algorithm>
 #include <future>
 
+bool operator<(sf::Vector2i f, sf::Vector2i s)
+{
+	return (f.x < s.x) && (f.y < s.y);
+}
+bool operator>(sf::Vector2i f, sf::Vector2i s)
+{
+	return !(f < s);
+}
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -16,24 +24,39 @@ void CAE::Application::handleEvent(sf::Event& event)
 		if (event.type == sf::Event::MouseButtonReleased)
 			if (event.key.code == sf::Mouse::Button::Left)
 				pointSelected = false;
+
 		if (event.type == sf::Event::MouseWheelScrolled)
 		{
 			if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel) {}
 			else if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {}
 
 			auto prev = view.getSize();
+			float prevS = 0;
+			if (currAsset != nullptr)
+				prevS = currAsset->groups.begin()->parts.begin()->getNode().begin()->getRadius();
+
 			if (event.mouseWheelScroll.delta < 0)
 			{
 				prev.x *= scaleFactor;
 				prev.y *= scaleFactor;
+				prevS += 0.3;
 				scaleSign = 1;
 			}
 			else
 			{
 				prev.x /= scaleFactor;
 				prev.y /= scaleFactor;
+				prevS -= 0.3;
 				scaleSign = -1;
 			}
+
+			//this is terrible
+			if (currAsset != nullptr)
+				for (auto& elem : currAsset->groups)
+					for (auto& part : elem.parts)
+						for (auto& node : part.getNode())
+							node.updateRadius(prevS);
+
 			view.setSize(prev);
 			viewUpdated();
 		}
@@ -46,7 +69,9 @@ void CAE::Application::handleEvent(sf::Event& event)
 			auto mCurrPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
 			auto delta = mPrevPose - mCurrPose;
 			view.move(delta);
+			attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}
+
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Tilde) && pressClock.getElapsedTime().asMilliseconds() > 500)
 	{
 		LogConsole = !LogConsole;
@@ -79,7 +104,7 @@ void CAE::Application::draw()
 		//window->draw(gridSpr);
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
-	if (attTimer.getElapsedTime() < sf::seconds(2))
+	if (attTimer.getElapsedTime() < sf::seconds(20))
 		window->draw(attention);
 
 	ImGui::SFML::Render(*window);
@@ -88,8 +113,6 @@ void CAE::Application::draw()
 
 void CAE::Application::update()
 {
-	m_prevPos = m_pos;
-	m_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 	if (Console::AppLog::hasNewLog())
 		attTimer.restart();
 	if (currAsset != nullptr)
@@ -108,8 +131,9 @@ void CAE::Application::updateGrid(sf::Vector2f size)
 }
 void CAE::Application::editorUpdate()
 {
-	static ScaleNode* selectedNode = nullptr;
-	static Part* selectedPart = nullptr;
+	m_c_prevPos = m_c_pos;
+	m_c_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+	m_p_pos = sf::Mouse::getPosition(*window);
 	for (auto& group : currAsset->groups)
 	{
 		if (group.isVisible())
@@ -118,11 +142,11 @@ void CAE::Application::editorUpdate()
 			{
 				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
 				{
-					if (auto rect = elem.getRect(); elem.getRect().contains(m_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+					if (auto rect = elem.getRect(); elem.getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
 					{
-						if (m_prevPos.x != 0 && m_prevPos.y != 0)
+						if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
 						{
-							auto delta = m_pos - m_prevPos;
+							auto delta = m_c_pos - m_c_prevPos;
 							rect.left += delta.x;
 							rect.top += delta.y;
 							elem.setRect(rect);
@@ -130,22 +154,45 @@ void CAE::Application::editorUpdate()
 						}
 					}
 				}
+				else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::C))
+				{
+					if (auto rect = elem.getRect(); elem.getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+					{
+						if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
+						{
+							auto delta = m_p_pos - m_p_prevPos;
+							int factor = 20;
+							if (abs(delta.x) > factor || abs(delta.y) > factor)
+							{
+								if (abs(delta.x) > factor)
+									rect.left = round(rect.left) + delta.x % factor;
+								if (abs(delta.y) > factor)
+									rect.top = round(rect.top) + delta.y % factor;
+								m_p_prevPos = m_p_pos;
+							}
+							elem.setRect(rect);
+							selectedPart = &elem;
+						}
+					}
+				}
 				else
-					selectedPart = nullptr;
+				{
+					selectedPart = nullptr; m_p_prevPos = m_p_pos;
+				}
 
 				static int selectedPoint = -1;
 				for (auto& p : elem.getNode())
 				{
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
 					{
-						if ((p.c.getGlobalBounds().contains(m_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
+						if ((p.getGlobalBounds().contains(m_c_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
 						{
 							pointSelected = true;
 							selectedPoint = p.side;
 							selectedNode = &p;
-							if (auto rect = elem.getRect(); m_prevPos.x != 0 && m_prevPos.y != 0)
+							if (auto rect = elem.getRect(); m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
 							{
-								auto delta = sf::Vector2f{ m_pos - m_prevPos };
+								auto delta = sf::Vector2f{ m_c_pos - m_c_prevPos };
 								switch (p.side)
 								{
 								case 0:
@@ -169,6 +216,7 @@ void CAE::Application::editorUpdate()
 		}
 	}
 }
+
 #include <filesystem>
 namespace fs = std::filesystem;
 void CAE::Application::loadAssets()
@@ -221,27 +269,66 @@ void CAE::Application::tapWindow()
 	else
 	{
 		ImGui::SetWindowPos(window_pos, ImGuiCond_Always);
-		if (animPlayer.empty())
+		ImGui::BeginChild("Select Animation", ImVec2(150, 0), true);
+		for (auto& anim : animPlayer)
+			if (ImGui::Selectable(anim.name.c_str()))
+				animPlayer.setCurrentAnim(anim);
+		ImGui::EndChild();
+		ImGui::SameLine();
+		ImGui::BeginGroup();
+		ImGui::BeginChild("item view", ImVec2(0, -ImGui::GetFrameHeightWithSpacing()), true); // Leave room for 1 line below us
+		ImGui::Text("MyObject:");
+		ImGui::Separator();
+		static bool antime = true;
+		if (animPlayer.hasAnimation())
 		{
-			if (ImGui::Button("Parse Asset"))
-				animPlayer.parseAnimationAssets(currAsset->groups);
+			if (ImGui::BeginTabBar("##Tabs", ImGuiTabBarFlags_None))
+			{
+				auto curr = animPlayer.getCurrentAnimation();
+				if (ImGui::BeginTabItem("Show Animation"))
+				{
+					sf::FloatRect rect = animPlayer.animUpdate((antime == true) ? 1 : 0);
+					float d = 150 / rect.height;
+					auto size = sf::Vector2f(rect.width, rect.height);
+					size.x *= d;
+					size.y *= d;
+					ImGui::Text("Size: %.2f, %.2f", size.x, size.y);
+					ImGui::Image(*currAsset->getTexture(), size, rect);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Settings"))
+				{
+					ImGui::DragFloat("Change animation speed", &curr->speed, 0.0002, -10, 10);
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Info"))
+				{
+					ImGui::Text("Number of frames: %f", curr->frameCount);
+					ImGui::Text("Animation name: %s", curr->name.c_str());
+					if (ImGui::TreeNode("frames"))
+					{
+						int id = 1;
+						for (auto& frame : curr->frames)
+							ImGui::Text("#%d: left: %.2f top: %.2f w: %.2f h: %.2f", id, frame.left, frame.top, frame.width, frame.height);
+						ImGui::TreePop();
+					}
+					ImGui::EndTabItem();
+				}
+				ImGui::EndTabBar();
+			}
 		}
 		else
-		{
-			if (!animPlayer.hasAnimation())
-			{
-				for (auto& anim : animPlayer)
-					if (ImGui::Selectable(anim.name.c_str()))
-						animPlayer.setCurrentAnim(anim);
-			}
-			else
-			{
-				sf::FloatRect rect = animPlayer.animUpdate();
-				ImGui::Image(*currAsset->getTexture(), sf::Vector2f{ 100,100 }, rect);
-			}
-		}
-		ImGui::End();
+			ImGui::TextColored(ImVec4(1, 0, 0, 1), "the animation is not selected");
+		ImGui::EndChild();
+		if (ImGui::Button("Stop")) antime = false;
+		ImGui::SameLine();
+		if (ImGui::Button("Play")) antime = true;
+		ImGui::SameLine();
+		if (ImGui::Button("Parse Asset"))
+			animPlayer.parseAnimationAssets(currAsset->groups);
+		ImGui::EndGroup();
 	}
+	ImGui::End();
 }
 
 void CAE::Application::viewSettings()
@@ -318,8 +405,19 @@ void CAE::Application::editor()
 			ImGui::TextColored(ImVec4(1, 0, 0, 1), "groups is empty");
 		else
 		{
+			if (ImGui::Button("store coordinates as int"))
+				for (auto& group : currAsset->groups)
+				{
+					for (auto& part : group.parts)
+					{
+						part.coordToInt();
+					}
+				}
+
 			for (auto& group : currAsset->groups)
 			{
+				auto iterToDelte = group.parts.begin();
+				bool del = false;
 				ImGui::PushID(unique_id);
 
 				if (ImGui::TreeNode(group.getName().c_str()))
@@ -328,13 +426,14 @@ void CAE::Application::editor()
 						group.parts.emplace_back(sf::FloatRect(0, 0, 20, 20));
 
 					bool isVisible = group.isVisible();
-		
+
 					ImGui::Checkbox("isVisible", &isVisible);
 					group.setVisible(isVisible);
 
 					int i = 0;
-					for (auto& part : group.parts)
+					for (auto iter = group.parts.begin(); iter != group.parts.end(); ++iter)
 					{
+						auto& part = *iter;
 						ImGui::PushID(i);
 						auto r = part.getRect();
 						ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, r.left, r.top, r.width, r.height);
@@ -346,8 +445,15 @@ void CAE::Application::editor()
 							ImGui::DragFloat("#width", &changedValue.width, 0.5f, 0.f, FLT_MAX);
 							ImGui::DragFloat("#height", &changedValue.height, 0.5f, 0.f, FLT_MAX);
 							part.setRect(changedValue);
+							if (ImGui::Button("Delete Rect"))
+							{
+								iterToDelte = iter;
+								del = true;
+								ImGui::CloseCurrentPopup();
+							}
 							ImGui::EndPopup();
 						}
+
 						ImGui::PopID();
 						++i;
 					}
@@ -355,7 +461,10 @@ void CAE::Application::editor()
 				}
 				ImGui::PopID();
 				++unique_id;
+				if (del)
+					group.parts.erase(iterToDelte);
 			}
+
 		}
 		ImGui::Spacing();
 		ImGui::Separator();
