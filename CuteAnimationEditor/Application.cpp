@@ -31,31 +31,35 @@ void CAE::Application::handleEvent(sf::Event& event)
 			else if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {}
 
 			auto prev = view.getSize();
-			float prevS = 0;
-			if (currAsset != nullptr)
-				prevS = currAsset->groups.begin()->parts.begin()->getNode().begin()->getRadius();
 
 			if (event.mouseWheelScroll.delta < 0)
 			{
 				prev.x *= scaleFactor;
 				prev.y *= scaleFactor;
-				prevS += 0.3;
+				nodeSize += 0.3;
 				scaleSign = 1;
 			}
 			else
 			{
 				prev.x /= scaleFactor;
 				prev.y /= scaleFactor;
-				prevS -= 0.3;
+				nodeSize -= 0.3;
 				scaleSign = -1;
 			}
 
-			//this is terrible
-			if (currAsset != nullptr)
-				for (auto& elem : currAsset->groups)
-					for (auto& part : elem.parts)
-						for (auto& node : part.getNode())
-							node.updateRadius(prevS);
+			if (asyncNodeScale.joinable())
+				asyncNodeScale.join();
+			asyncNodeScale = std::thread(
+				[this]()
+				{
+					if (currAsset != nullptr)
+					{
+						for (Group& group : *currAsset)
+							for (Part& part : group.getParts())
+								for (auto& node : part.getNode())
+									node.updateRadius(nodeSize);
+					}
+				});
 
 			view.setSize(prev);
 			viewUpdated();
@@ -90,10 +94,10 @@ void CAE::Application::draw()
 		window->draw(*currAsset);
 		if (creatorMode)
 		{
-			for (auto& elem : currAsset->groups)
+			for (Group& elem : *currAsset)
 			{
 				if (elem.isVisible())
-					for (auto& part : elem.parts)
+					for (Part& part : elem.getParts())
 					{
 						window->draw(part.getVertex());
 						for (auto& node : part.getNode())
@@ -101,10 +105,9 @@ void CAE::Application::draw()
 					}
 			}
 		}
-		//window->draw(gridSpr);
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
-	if (attTimer.getElapsedTime() < sf::seconds(20))
+	if (attTimer.getElapsedTime() < sf::seconds(2))
 		window->draw(attention);
 
 	ImGui::SFML::Render(*window);
@@ -120,25 +123,16 @@ void CAE::Application::update()
 			editorUpdate();
 }
 
-void CAE::Application::updateGrid(sf::Vector2f size)
-{
-	if (currAsset != nullptr)
-	{
-		//grid.loadFromImage(makeGrid(size));
-		gridSpr.setTexture(grid);
-		gridSpr.setPosition(currAsset->getPosition());
-	}
-}
 void CAE::Application::editorUpdate()
 {
 	m_c_prevPos = m_c_pos;
 	m_c_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 	m_p_pos = sf::Mouse::getPosition(*window);
-	for (auto& group : currAsset->groups)
+	for (Group& group : *currAsset)
 	{
 		if (group.isVisible())
 		{
-			for (auto& elem : group.parts)
+			for (Part& elem : group.getParts())
 			{
 				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
 				{
@@ -177,14 +171,13 @@ void CAE::Application::editorUpdate()
 				}
 				else
 				{
-					selectedPart = nullptr; m_p_prevPos = m_p_pos;
+					selectedPart = nullptr;
+					m_p_prevPos = m_p_pos;
 				}
 
 				static int selectedPoint = -1;
 				for (auto& p : elem.getNode())
-				{
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
-					{
 						if ((p.getGlobalBounds().contains(m_c_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
 						{
 							pointSelected = true;
@@ -210,8 +203,6 @@ void CAE::Application::editorUpdate()
 								}
 							}
 						}
-					}
-				}
 			}
 		}
 	}
@@ -406,24 +397,22 @@ void CAE::Application::editor()
 		else
 		{
 			if (ImGui::Button("store coordinates as int"))
-				for (auto& group : currAsset->groups)
+				for (Group& group : *currAsset)
 				{
-					for (auto& part : group.parts)
-					{
+					for (Part& part : group.getParts())
 						part.coordToInt();
-					}
 				}
 
 			for (auto& group : currAsset->groups)
 			{
-				auto iterToDelte = group.parts.begin();
+				auto iterToDelte = group.getParts().begin();
 				bool del = false;
 				ImGui::PushID(unique_id);
 
 				if (ImGui::TreeNode(group.getName().c_str()))
 				{
 					if (ImGui::Button("add rect"))
-						group.parts.emplace_back(sf::FloatRect(0, 0, 20, 20));
+						group.getParts().emplace_back(sf::FloatRect(0, 0, 20, 20));
 
 					bool isVisible = group.isVisible();
 
@@ -431,7 +420,7 @@ void CAE::Application::editor()
 					group.setVisible(isVisible);
 
 					int i = 0;
-					for (auto iter = group.parts.begin(); iter != group.parts.end(); ++iter)
+					for (auto iter = group.getParts().begin(); iter != group.getParts().end(); ++iter)
 					{
 						auto& part = *iter;
 						ImGui::PushID(i);
@@ -462,7 +451,7 @@ void CAE::Application::editor()
 				ImGui::PopID();
 				++unique_id;
 				if (del)
-					group.parts.erase(iterToDelte);
+					group.getParts().erase(iterToDelte);
 			}
 
 		}
@@ -511,10 +500,7 @@ void CAE::Application::viewLoadedAssets()
 				ImGui::Text("Texture Path: %s", a->getPath().c_str());
 				ImGui::Text("step on the axis Width: %i Height: %i", WH.first, WH.second);
 				if (ImGui::Button("select as current"))
-				{
 					currAsset = a;
-					updateGrid({ 80,80 });
-				}
 				ImGui::TreePop();
 			}
 			ImGui::Separator();
@@ -650,7 +636,6 @@ void CAE::Application::loadState()
 					{
 						animAssets.push_back(ptr);
 						currAsset = *animAssets.begin();
-						updateGrid({ 80,80 });
 					}
 					else
 						delete ptr;
@@ -666,25 +651,24 @@ void CAE::Application::loadState()
 		open.close();
 	}
 	else
-		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
+	{
+		Console::AppLog::addLog("File config.json can't be opened!", Console::system);
+		saveState();
+	}
 }
 
 void CAE::Application::saveState()
 {
-	if (ofstream open("config.json"); open.is_open())
+	ofstream open("config.json");
+	if (currAsset != nullptr)
 	{
-		if (currAsset != nullptr)
-		{
-			json j;
-			j["currentAsset"] = currAsset->assetPath;
-			j["useMouse"] = useMouse;
-			j["creatorMode"] = creatorMode;
-			open << std::setw(4) << j;
-		}
-		open.close();
+		json j;
+		j["currentAsset"] = currAsset->assetPath;
+		j["useMouse"] = useMouse;
+		j["creatorMode"] = creatorMode;
+		open << std::setw(4) << j;
 	}
-	else
-		Console::AppLog::addLog("File config.json can't be opened!", Console::error);
+	open.close();
 }
 
 void CAE::Application::viewUpdated()
@@ -694,33 +678,6 @@ void CAE::Application::viewUpdated()
 	attention.setScale({ scale, scale });
 }
 
-auto CAE::Application::makeGrid(sf::Vector2f sz)
-{
-	sf::RenderTexture t;
-	t.create(currAsset->texture.getSize().x, currAsset->texture.getSize().y);
-	t.clear(sf::Color(0, 0, 0, 0));
-	auto deltaX = currAsset->texture.getSize().x / sz.x;
-	for (int i = 0; i < sz.x; ++i)
-	{
-		sf::Vertex line[] =
-		{
-			sf::Vertex(sf::Vector2f(i * deltaX, 0)),
-			sf::Vertex(sf::Vector2f(i * deltaX,  currAsset->texture.getSize().y))
-		};
-		t.draw(line, 2, sf::Lines);
-	}
-	auto deltaY = currAsset->texture.getSize().y / sz.y;
-	for (int i = 0; i < sz.y; ++i)
-	{
-		sf::Vertex line[] =
-		{
-			sf::Vertex(sf::Vector2f(0, i * deltaY)),
-			sf::Vertex(sf::Vector2f(currAsset->texture.getSize().x,  i * deltaY))
-		};
-		t.draw(line, 2, sf::Lines);
-	}
-	return sf::Image(t.getTexture().copyToImage());
-}
 
 void CAE::Application::start()
 {
@@ -755,6 +712,5 @@ void CAE::Application::start()
 		auto elapsedTime(timePoint2 - timePoint1);
 		float ft{ chrono::duration_cast<chrono::duration<float, milli>>(elapsedTime).count() };
 		lastFt = ft;
-
 	}
 }
