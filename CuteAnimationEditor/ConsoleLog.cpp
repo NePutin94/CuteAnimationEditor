@@ -18,6 +18,14 @@ void Console::AppLog::saveLog(std::string_view path)
 			out << log.text << std::endl;
 	}
 }
+void CAE::Console::Log::count_update(int count)
+{
+	auto b = text.find_first_of(')');
+	auto a = text.find_first_of('(');
+	auto offset = b - a - 1;
+	text.erase(a + 1, b - a - 1);
+	text.insert(a + 1, std::to_string(count));
+}
 
 void Console::AppLog::Draw(const char* title, bool* p_open)
 {
@@ -147,6 +155,7 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
 Console::Log::Log(std::string s, logType t)
 {
 	type = t;
+	log_count = 1;
 	double time = clock();
 	std::string ti = std::to_string(std::round(time / 10) / 100);
 	ti.erase(ti.find_first_of('.') + 3, ti.size());
@@ -154,31 +163,33 @@ Console::Log::Log(std::string s, logType t)
 	switch (t)
 	{
 	case logType::error:
-		color = ImVec4(1, 0.05, 0.1, 1);
-		l += " type:error]: ";
+		color = ImVec4(1, 0.35, 0, 1);
+		l += " type:error";
 		break;
 	case logType::info:
 		color = ImVec4(0, 1, 0.3, 1);
-		l += " type:info]: ";
+		l += " type:info";
 		break;
 	case logType::fatal:
 		color = ImVec4(1, 0, 0, 1);
-		l += " type:fatal]: ";
+		l += " type:fatal";
 		break;
 	case logType::system:
 		color = ImVec4(1, 0, 0.8, 1);
-		l += " type:system]: ";
+		l += " type:system";
 		break;
 	case logType::script:
 		color = ImVec4(0.1, 0.5, 0.1, 1);
-		l += " type:script]: ";
+		l += " type:script";
 		break;
 	case logType::script_result:
 		color = ImVec4(0.1, 0.5, 0.1, 1);
-		l += " type:script_result]: ";
+		l += " type:script_result";
 		break;
 	}
+	l += " (1)]: ";
 	l += s;
 	l += " \n";
 	text = l;
+	pervText = s;
 }

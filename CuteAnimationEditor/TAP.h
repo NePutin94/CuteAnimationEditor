@@ -16,11 +16,12 @@ namespace CAE
 		sf::Vector2f   origin;
 		AnimationState state;
 		std::vector<sf::FloatRect> frames;
+		//yep,  these are fields like the group entity
 		float frame;
 		float frameCount;
 		float speed;
-		bool  looped;
 		float scale;
+		bool  looped;
 
 		Animation()
 		{
@@ -56,7 +57,8 @@ namespace CAE
 		}
 	};
 
-	class TAP : public std::list<CaeAnimation>///Tiny Animation Player
+	/*------------------------------------------------------------------Tiny Animation Player------------------------------------------------------------------*/
+	class TAP : public std::list<CaeAnimation> 
 	{
 	private:
 		CaeAnimation* currAnim;
@@ -64,9 +66,7 @@ namespace CAE
 		TAP() = default;
 
 		void setCurrentAnim(CaeAnimation& anim) { currAnim = &anim;}
-		auto getCurrentAnimation() {
-			return currAnim;
-		}
+		auto getCurrentAnimation() { return currAnim; }
 		bool hasAnimation() { return currAnim != nullptr; }
 
 		sf::FloatRect animUpdate(float t)
@@ -82,11 +82,10 @@ namespace CAE
 			{
 				CaeAnimation anim;
 				anim.name = group.getName();
-				anim.frameCount = group.parts.size();
-				for (auto& part : group.parts)
-				{
+				anim.speed = group.getSpeed();
+				anim.frameCount = group.getParts().size() - 1; //numbering starts from zero
+				for (auto& part : group.getParts())
 					anim.frames.push_back(part.getRect());
-				}
 				this->emplace_back(anim);
 				if (this->empty())
 					currAnim = &(*this->begin());

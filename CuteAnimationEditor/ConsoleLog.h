@@ -11,7 +11,6 @@ namespace CAE
 {
 	namespace Console
 	{
-
 		enum logType
 		{
 			error = 1,
@@ -21,32 +20,22 @@ namespace CAE
 			script,
 			script_result
 		};
+
 		constexpr std::string_view logType_s[] =
 		{
 			 "all", "error", "info", "fatal", "system" ,"script", "script_result"
 		};
-		/*!
-		\brief Structure that stores the log data
-		\bug
-		\warning
-		\example
-		\todo
-		*/
+
 		struct Log
 		{
 			Log(std::string s, logType t);
 			std::string text;
+			std::string pervText;
+			void count_update(int count);
+			int log_count;
 			ImVec4 color;
 			logType type;
 		};
-
-		/*!
-		\brief The structure of which draws and adds the log
-		\bug
-		\warning
-		\example
-		\todo
-		*/
 
 		class AppLog
 		{
@@ -55,6 +44,7 @@ namespace CAE
 			static std::vector<std::string> current_input;
 			static vector<Log> Buffer;
 			static bool newLog;
+
 		public:
 			AppLog() = default;
 			~AppLog() { saveLog("Data/log.txt"); }
@@ -64,13 +54,26 @@ namespace CAE
 				Buffer.shrink_to_fit();
 			}
 			static bool hasNewLog() { bool prev = newLog; newLog = false; return prev; }
-			static void addLog(Log log) { Buffer.push_back(log); newLog = true; }
+			static void addLog(Log log) {
+				if (!Buffer.empty())
+				{
+					if (Buffer.back().pervText != log.pervText)
+						Buffer.emplace_back(log);
+					else
+						Buffer.back().count_update(++Buffer.back().log_count);
+				}
+				else
+					Buffer.emplace_back(log);
+				newLog = true;
+			}
 			static void addLog(std::string s, logType t)
 			{
 				if (!Buffer.empty())
 				{
-					if (Buffer.back().text != s)
+					if (Buffer.back().pervText != s)
 						Buffer.emplace_back(s, t);
+					else
+						Buffer.back().count_update(++Buffer.back().log_count);
 				}
 				else
 					Buffer.emplace_back(s, t);

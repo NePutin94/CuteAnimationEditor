@@ -1,4 +1,5 @@
 {
-    "currentAsset": "test2.json",
-    "useMouse": false
+    "creatorMode": true,
+    "currentAsset": "HeroAsset.json",
+    "useMouse": true
 }
