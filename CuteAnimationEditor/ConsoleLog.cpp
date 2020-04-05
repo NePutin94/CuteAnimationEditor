@@ -8,6 +8,7 @@ vector<Console::Log>       Console::AppLog::Buffer = {};
 bool                       Console::AppLog::ScrollToBottom = 0;
 std::vector<std::string>   Console::AppLog::current_input = {};
 bool Console::AppLog::newLog = false;
+
 void Console::AppLog::saveLog(std::string_view path)
 {
 	std::ofstream out;
@@ -152,44 +153,44 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
 
 }
 
-Console::Log::Log(std::string s, logType t)
+Console::Log::Log(std::string clearText, logType t)
 {
 	type = t;
 	log_count = 1;
 	double time = clock();
 	std::string ti = std::to_string(std::round(time / 10) / 100);
 	ti.erase(ti.find_first_of('.') + 3, ti.size());
-	std::string l = "[sec:" + ti;
+	std::string FormattedText = "[sec:" + ti;
 	switch (t)
 	{
 	case logType::error:
 		color = ImVec4(1, 0.35, 0, 1);
-		l += " type:error";
+		FormattedText += " type:error";
 		break;
 	case logType::info:
 		color = ImVec4(0, 1, 0.3, 1);
-		l += " type:info";
+		FormattedText += " type:info";
 		break;
 	case logType::fatal:
 		color = ImVec4(1, 0, 0, 1);
-		l += " type:fatal";
+		FormattedText += " type:fatal";
 		break;
 	case logType::system:
 		color = ImVec4(1, 0, 0.8, 1);
-		l += " type:system";
+		FormattedText += " type:system";
 		break;
 	case logType::script:
 		color = ImVec4(0.1, 0.5, 0.1, 1);
-		l += " type:script";
+		FormattedText += " type:script";
 		break;
 	case logType::script_result:
 		color = ImVec4(0.1, 0.5, 0.1, 1);
-		l += " type:script_result";
+		FormattedText += " type:script_result";
 		break;
 	}
-	l += " (1)]: ";
-	l += s;
-	l += " \n";
-	text = l;
-	pervText = s;
+	FormattedText += " (1)]: ";
+	FormattedText += clearText;
+	FormattedText += " \n";
+	text = FormattedText;
+	pervText = clearText;
 }
