@@ -2,15 +2,19 @@
 #include <iomanip>
 #include <algorithm>
 #include <future>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 bool operator<(sf::Vector2i f, sf::Vector2i s)
 {
 	return (f.x < s.x) && (f.y < s.y);
 }
+
 bool operator>(sf::Vector2i f, sf::Vector2i s)
 {
 	return !(f < s);
 }
+
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -20,7 +24,19 @@ void CAE::Application::handleEvent(sf::Event& event)
 			state = states::Exit;
 			break;
 		}
-
+		if (event.type == sf::Event::KeyReleased)
+		{
+			if (event.key.code == sf::Keyboard::F1)
+			{
+				useFloat = !useFloat;
+				Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::info);
+			}
+			if (event.key.code == sf::Keyboard::F2)
+			{
+				useMouse = !useMouse;
+				Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::info);
+			}
+		}
 		if (event.type == sf::Event::MouseButtonReleased)
 			if (event.key.code == sf::Mouse::Button::Left)
 				pointSelected = false;
@@ -49,15 +65,16 @@ void CAE::Application::handleEvent(sf::Event& event)
 
 			if (asyncNodeScale.joinable())
 				asyncNodeScale.join();
+
 			asyncNodeScale = std::thread(
 				[this]()
 				{
 					if (currAsset != nullptr)
 					{
-						for (Group& group : *currAsset)
-							for (Part& part : group.getParts())
-								for (auto& node : part.getNode())
-									node.updateRadius(nodeSize);
+						for (Group& group : *currAsset) //yep, one day it may fall
+							for (Part& part : group.getParts()) //yep, one day it may fall
+								for (auto& node : part.getNode()) //yep, one day it may fall
+									node.updateRadius(nodeSize); //yep, one day it may fall
 					}
 				});
 
@@ -73,7 +90,7 @@ void CAE::Application::handleEvent(sf::Event& event)
 			auto mCurrPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
 			auto delta = mPrevPose - mCurrPose;
 			view.move(delta);
-			attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}
 
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Tilde) && pressClock.getElapsedTime().asMilliseconds() > 500)
@@ -107,8 +124,13 @@ void CAE::Application::draw()
 		}
 	}
 	Console::AppLog::Draw("LogConsole", &LogConsole);
-	if (attTimer.getElapsedTime() < sf::seconds(2))
-		window->draw(attention);
+
+	if (attTimer.getElapsedTime() < sf::seconds(2) && newMessage)
+	{
+		showLog(Console::AppLog::lastLog());
+		//window->draw(attention);
+	}
+	else newMessage = false;
 
 	ImGui::SFML::Render(*window);
 	window->display();
@@ -117,7 +139,11 @@ void CAE::Application::draw()
 void CAE::Application::update()
 {
 	if (Console::AppLog::hasNewLog())
+	{
+		newMessage = true;
 		attTimer.restart();
+	}
+
 	if (currAsset != nullptr)
 		if (creatorMode)
 			editorUpdate();
@@ -134,47 +160,60 @@ void CAE::Application::editorUpdate()
 		{
 			for (Part& elem : group.getParts())
 			{
+				////////////////////////////////////MOVING(FLOAT OFFSET)//////////////////////////////////////////
 				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
 				{
 					if (auto rect = elem.getRect(); elem.getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
 					{
 						if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
 						{
-							auto delta = m_c_pos - m_c_prevPos;
-							rect.left += delta.x;
-							rect.top += delta.y;
-							elem.setRect(rect);
-							selectedPart = &elem;
-						}
-					}
-				}
-				else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::C))
-				{
-					if (auto rect = elem.getRect(); elem.getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
-					{
-						if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
-						{
-							auto delta = m_p_pos - m_p_prevPos;
-							int factor = 20;
-							if (abs(delta.x) > factor || abs(delta.y) > factor)
+							if (useFloat)
 							{
-								if (abs(delta.x) > factor)
-									rect.left = round(rect.left) + delta.x % factor;
-								if (abs(delta.y) > factor)
-									rect.top = round(rect.top) + delta.y % factor;
-								m_p_prevPos = m_p_pos;
+
+								auto delta = m_c_pos - m_c_prevPos;
+								rect.left += delta.x;
+								rect.top += delta.y;
+								elem.setRect(rect);
+								selectedPart = &elem;
+
 							}
-							elem.setRect(rect);
-							selectedPart = &elem;
+							else
+							{
+								auto delta = m_p_pos - m_p_prevPos;
+								int factor = 20;
+								if (abs(delta.x) > factor || abs(delta.y) > factor)
+								{
+									if (abs(delta.x) > factor)
+										rect.left = round(rect.left) + delta.x % factor;
+									if (abs(delta.y) > factor)
+										rect.top = round(rect.top) + delta.y % factor;
+									m_p_prevPos = m_p_pos;
+								}
+								elem.setRect(rect);
+								selectedPart = &elem;
+							}
 						}
 					}
 				}
+				//////////////////////////////////////MOVING(INTEGER OFFSET)//////////////////////////////////////////
+				//else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::C))
+				//{
+				//	if (auto rect = elem.getRect(); elem.getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == &elem : true))
+				//	{
+				//		if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
+				//		{
+
+				//		}
+				//	}
+				//}
 				else
 				{
 					selectedPart = nullptr;
 					m_p_prevPos = m_p_pos;
 				}
 
+
+				////////////////////////////////////SCALE//////////////////////////////////////////
 				static int selectedPoint = -1;
 				for (auto& p : elem.getNode())
 					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
@@ -208,8 +247,6 @@ void CAE::Application::editorUpdate()
 	}
 }
 
-#include <filesystem>
-namespace fs = std::filesystem;
 void CAE::Application::loadAssets()
 {
 	ImGui::BeginChild("Load assets");
@@ -218,7 +255,7 @@ void CAE::Application::loadAssets()
 	{
 		if (buff != NULL)
 		{
-			std::string copy = buff;
+			/*std::string copy = buff;
 			if (fs::exists(copy))
 			{
 				auto task = [this](std::string copyBuffer)
@@ -229,12 +266,13 @@ void CAE::Application::loadAssets()
 					else
 						delete ptr;
 				};
-
+				Console::AppLog::addLog("Loading asset from: " + copy, Console::info);
 				std::thread(task, copy).detach();
 				clearBuffers();
 			}
 			else
-				Console::AppLog::addLog("File does not exist!", Console::error);
+				Console::AppLog::addLog("File does not exist!", Console::error);*/
+			loadAsset(buff);
 		}
 		else
 			Console::AppLog::addLog("Cannot be loaded now", Console::logType::error);
@@ -629,21 +667,22 @@ void CAE::Application::loadState()
 			creatorMode = j.at("creatorMode").get<bool>();
 			if (p != "Null")
 			{
-				auto task = [this](const std::string path)
-				{
-					auto ptr = new CAE::AnimationAsset{ path };
-					if (ptr->loadFromFile())
+				loadAsset(p, true);
+				/*	auto task = [this](const std::string path)
 					{
-						animAssets.push_back(ptr);
-						currAsset = *animAssets.begin();
-					}
-					else
-						delete ptr;
-				};
-				std::thread(task, p).detach();
+						auto ptr = new CAE::AnimationAsset{ path };
+						if (ptr->loadFromFile())
+						{
+							animAssets.push_back(ptr);
+							currAsset = *animAssets.begin();
+						}
+						else
+							delete ptr;
+					};
+					std::thread(task, p).detach();*/
 			}
 		}
-		catch (json::exception & e)
+		catch (json::exception& e)
 		{
 			std::string str = e.what();
 			Console::AppLog::addLog("Json throw exception, message: " + str, Console::error);
@@ -671,17 +710,59 @@ void CAE::Application::saveState()
 	open.close();
 }
 
-void CAE::Application::viewUpdated()
+void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 {
-	attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-	auto scale = (scaleSign > 0) ? attention.getScale().x * scaleFactor : attention.getScale().x / scaleFactor;
-	attention.setScale({ scale, scale });
+	if (fs::exists(path))
+	{
+		auto task = [this, setAsCurr](std::string copyBuffer)
+		{
+			auto ptr = new CAE::AnimationAsset{ copyBuffer };
+			if (ptr->loadFromFile())
+			{
+				animAssets.push_back(ptr);
+				if (setAsCurr)
+					currAsset = *animAssets.begin();
+			}
+			else
+				delete ptr;
+		};
+		Console::AppLog::addLog("Loading asset from: " + path, Console::info);
+		std::thread(task, path).detach();
+		clearBuffers();
+	}
+	else
+		Console::AppLog::addLog("File does not exist!", Console::error);
 }
 
+void CAE::Application::showLog(std::string_view txt)
+{
+	ImGuiWindowFlags window_flags = 0;
+	window_flags |= ImGuiWindowFlags_NoScrollbar;
+	window_flags |= ImGuiWindowFlags_NoCollapse;
+	window_flags |= ImGuiWindowFlags_NoMove;
+	window_flags |= ImGuiWindowFlags_NoResize;
+	window_flags |= ImGuiWindowFlags_NoInputs;
+	window_flags |= ImGuiWindowFlags_NoTitleBar;
+	window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
+	window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
+	//ImGui::SetNextWindowSize(ImVec2(180, 50));
+	auto io = ImGui::GetIO();
+	ImVec2 window_pos = ImVec2(1.f, 1.f);
+	ImGui::SetNextWindowPos(window_pos);
+	ImGui::Begin("Console Message", 0, window_flags);
+	ImGui::Text(txt.data());
+	ImGui::End();
+}
+
+void CAE::Application::viewUpdated()
+{
+	//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+	//auto scale = (scaleSign > 0) ? attention.getScale().x * scaleFactor : attention.getScale().x / scaleFactor;
+	//attention.setScale({ scale, scale });
+}
 
 void CAE::Application::start()
 {
-	Console::AppLog::addLog("Application::start()", Console::logType::info);
 	while (window->isOpen())
 	{
 		auto timePoint1(chrono::high_resolution_clock::now());

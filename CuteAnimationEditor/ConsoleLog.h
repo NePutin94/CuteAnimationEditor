@@ -81,6 +81,10 @@ namespace CAE
 			}
 			static void saveLog(std::string_view path);
 			static void Draw(const char* title, bool* p_open);
+			static std::string_view lastLog() 
+			{ 
+				return Buffer.back().pervText; 
+			}
 		};
 	} // namespace Console
 }

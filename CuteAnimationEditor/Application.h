@@ -26,8 +26,8 @@ namespace CAE
 		sf::Clock    deltaClock;
 		sf::Clock    pressClock; //used only in handleEvent, not global time
 		sf::Clock    attTimer;
-		sf::Texture  t;
-		sf::Sprite   attention;
+		//sf::Texture  t;
+		//sf::Sprite   attention;
 		sf::Vector2f mPrevPose; //used only in handleEvent
 		TAP          animPlayer;
 		//--------------------------used only in editorUpdate()--------------------------//
@@ -51,6 +51,8 @@ namespace CAE
 		bool useMouse;
 		bool creatorMode;
 		bool pointSelected;
+		bool useFloat;
+		bool newMessage;
 
 		void handleEvent(sf::Event& event);
 		void draw();
@@ -58,7 +60,9 @@ namespace CAE
 		void clearBuffers();
 		void loadState();
 		void saveState();
+		void loadAsset(std::string path, bool setAsCurr = false);
 
+		void showLog(std::string_view txt);
 		void viewUpdated();
 		void editorUpdate();
 		void loadAssets();
@@ -72,12 +76,14 @@ namespace CAE
 		void drawMenuBar();
 		void drawUI();
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5)
+		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
 		{
-			t.loadFromFile("attention.png");
-			attention.setTexture(t);
+			//t.loadFromFile("attention.png");
+			//attention.setTexture(t);
+			//attention.setScale({ 0.05f,0.05f });
+			//t.setSmooth(true);
 			view.setSize(w.getDefaultView().getSize());
-			attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}
 		~Application() { for (auto& it : animAssets) delete it; if (asyncNodeScale.joinable())asyncNodeScale.join(); }
 

@@ -56,9 +56,9 @@ namespace CAE
 		sf::FloatRect box;
 		Part(sf::FloatRect _rect);
 
-		auto& getNode()   { return node; }
+		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
-		auto getRect()    { return box; }
+		auto getRect() { return box; }
 
 		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect);
@@ -66,7 +66,7 @@ namespace CAE
 
 	class Group
 	{
-	private:	
+	private:
 		bool isEnable;
 		bool isLooped;
 		float animSpeed;
@@ -76,10 +76,10 @@ namespace CAE
 		std::vector<Part> parts;
 	public:
 		Group() = default;
-		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f) {}
+		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f) {}
 
 		void setSpeed(float sp) { animSpeed = sp; }
-		void setScale(float sc) { scale = sc; } 
+		void setScale(float sc) { scale = sc; }
 		void setVisible(bool v) { isEnable = v; }
 
 		auto getName()   const { return name; }
@@ -88,8 +88,8 @@ namespace CAE
 		auto begin()     const { return parts.begin(); }
 		auto end()       const { return parts.end(); }
 		bool isVisible() const { return isEnable; }
-		auto& getParts()  { return parts; }
-	
+		auto& getParts() { return parts; }
+
 		void save(json& j);
 		void load(json& j);
 	};
