@@ -29,12 +29,12 @@ void CAE::Application::handleEvent(sf::Event& event)
 			if (event.key.code == sf::Keyboard::F1)
 			{
 				useFloat = !useFloat;
-				Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::info);
+				Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::message);
 			}
 			if (event.key.code == sf::Keyboard::F2)
 			{
 				useMouse = !useMouse;
-				Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::info);
+				Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::message);
 			}
 		}
 		if (event.type == sf::Event::MouseButtonReleased)
@@ -138,7 +138,7 @@ void CAE::Application::draw()
 
 void CAE::Application::update()
 {
-	if (Console::AppLog::hasNewLog())
+	if (Console::AppLog::hasNewLogByTyp(Console::message))
 	{
 		newMessage = true;
 		attTimer.restart();
@@ -253,29 +253,7 @@ void CAE::Application::loadAssets()
 	ImGui::InputText("Texture path", buff, IM_ARRAYSIZE(buff));
 	if (ImGui::Button("Load"))
 	{
-		if (buff != NULL)
-		{
-			/*std::string copy = buff;
-			if (fs::exists(copy))
-			{
-				auto task = [this](std::string copyBuffer)
-				{
-					auto ptr = new CAE::AnimationAsset{ copyBuffer };
-					if (ptr->loadFromFile())
-						animAssets.push_back(ptr);
-					else
-						delete ptr;
-				};
-				Console::AppLog::addLog("Loading asset from: " + copy, Console::info);
-				std::thread(task, copy).detach();
-				clearBuffers();
-			}
-			else
-				Console::AppLog::addLog("File does not exist!", Console::error);*/
-			loadAsset(buff);
-		}
-		else
-			Console::AppLog::addLog("Cannot be loaded now", Console::logType::error);
+		loadAsset(buff);
 	}
 	ImGui::EndChild();
 }
@@ -429,7 +407,7 @@ void CAE::Application::editor()
 		ImGui::Spacing();
 		ImGui::Text("anim groups: ");
 		ImGui::Spacing();
-		int unique_id = 1;
+
 		if (currAsset->groups.empty())
 			ImGui::TextColored(ImVec4(1, 0, 0, 1), "groups is empty");
 		else
@@ -441,57 +419,83 @@ void CAE::Application::editor()
 						part.coordToInt();
 				}
 
+			auto make_text = [](Part& p) ->std::string
+			{
+				return "rect #" + std::to_string(p.getId()) + ": " + "w:" + std::to_string(p.getRect().width) + ", h:" + std::to_string(p.getRect().height);
+			};
+
+			auto parse_data = [](std::string d)
+			{
+				std::pair<int, int> p;
+				auto middle = d.find_first_of(":");
+				p.first = std::stoi(d.substr(0, middle));
+				p.second = std::stoi(d.substr(middle + 1, d.length() - middle));
+				return p;
+			};
+
+			ImGui::Image(attention, sf::Vector2f{ 32,32 });
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+				{
+					IM_ASSERT(payload->DataSize == sizeof(int));
+					const char* payload_n = (const char*)payload->Data;
+					auto [group_n, part_n] = parse_data(std::string(payload_n));
+					auto& p = currAsset->groups[group_n].getParts();
+					p.erase(p.begin() + part_n);
+				}
+				ImGui::EndDragDropTarget();
+			}
+			int group_id = 0;
+			int part_id = 0;
 			for (auto& group : currAsset->groups)
 			{
-				auto iterToDelte = group.getParts().begin();
-				bool del = false;
-				ImGui::PushID(unique_id);
+				ImGui::PushID(group_id);
 
 				if (ImGui::TreeNode(group.getName().c_str()))
 				{
 					if (ImGui::Button("add rect"))
-						group.getParts().emplace_back(sf::FloatRect(0, 0, 20, 20));
+						group.getParts().emplace_back(sf::FloatRect(0, 0, 20, 20), group.getParts().back().getId() + 1);
 
 					bool isVisible = group.isVisible();
 
 					ImGui::Checkbox("isVisible", &isVisible);
 					group.setVisible(isVisible);
-
-					int i = 0;
+					
 					for (auto iter = group.getParts().begin(); iter != group.getParts().end(); ++iter)
 					{
+						ImGui::PushID(part_id);
 						auto& part = *iter;
-						ImGui::PushID(i);
 						auto r = part.getRect();
-						ImGui::Text("rect #%i: %.2f %.2f %.2f %.2f", i, r.left, r.top, r.width, r.height);
-						if (ImGui::BeginPopupContextItem("change"))
-						{
-							auto changedValue = r;
-							ImGui::DragFloat("#left", &changedValue.left, 0.5f, -FLT_MAX, FLT_MAX);
-							ImGui::DragFloat("#top", &changedValue.top, 0.5f, -FLT_MAX, FLT_MAX);
-							ImGui::DragFloat("#width", &changedValue.width, 0.5f, 0.f, FLT_MAX);
-							ImGui::DragFloat("#height", &changedValue.height, 0.5f, 0.f, FLT_MAX);
-							part.setRect(changedValue);
-							if (ImGui::Button("Delete Rect"))
-							{
-								iterToDelte = iter;
-								del = true;
-								ImGui::CloseCurrentPopup();
-							}
-							ImGui::EndPopup();
-						}
+						ImGui::Selectable(make_text(part).c_str());
 
+						if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+						{
+							std::string str = std::to_string(group_id) + ":" + std::to_string(part_id);
+							const char* s = str.c_str();
+							ImGui::SetDragDropPayload("DAD", s, sizeof(s));
+							ImGui::Text("Swap %s", make_text(part).c_str());
+							ImGui::EndDragDropSource();
+						}
+						if (ImGui::BeginDragDropTarget())
+						{
+							if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+							{
+								IM_ASSERT(payload->DataSize == sizeof(int));
+								const char* payload_n = (const char*)payload->Data;
+								auto [_, num] = parse_data(std::string(payload_n));
+								std::iter_swap(group.getParts().begin() + num, iter);
+							}
+							ImGui::EndDragDropTarget();
+						}
 						ImGui::PopID();
-						++i;
+						++part_id;
 					}
 					ImGui::TreePop();
 				}
 				ImGui::PopID();
-				++unique_id;
-				if (del)
-					group.getParts().erase(iterToDelte);
+				++group_id;
 			}
-
 		}
 		ImGui::Spacing();
 		ImGui::Separator();
@@ -666,21 +670,7 @@ void CAE::Application::loadState()
 			useMouse = j.at("useMouse").get<bool>();
 			creatorMode = j.at("creatorMode").get<bool>();
 			if (p != "Null")
-			{
 				loadAsset(p, true);
-				/*	auto task = [this](const std::string path)
-					{
-						auto ptr = new CAE::AnimationAsset{ path };
-						if (ptr->loadFromFile())
-						{
-							animAssets.push_back(ptr);
-							currAsset = *animAssets.begin();
-						}
-						else
-							delete ptr;
-					};
-					std::thread(task, p).detach();*/
-			}
 		}
 		catch (json::exception& e)
 		{
@@ -712,7 +702,7 @@ void CAE::Application::saveState()
 
 void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 {
-	if (fs::exists(path))
+	if (!path.empty() && fs::exists(path))
 	{
 		auto task = [this, setAsCurr](std::string copyBuffer)
 		{
@@ -726,12 +716,12 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 			else
 				delete ptr;
 		};
-		Console::AppLog::addLog("Loading asset from: " + path, Console::info);
+		Console::AppLog::addLog("Loading asset from: " + path, Console::message);
 		std::thread(task, path).detach();
 		clearBuffers();
 	}
 	else
-		Console::AppLog::addLog("File does not exist!", Console::error);
+		Console::AppLog::addLog("File does not exist or input is empty!", Console::message);
 }
 
 void CAE::Application::showLog(std::string_view txt)
@@ -745,7 +735,6 @@ void CAE::Application::showLog(std::string_view txt)
 	window_flags |= ImGuiWindowFlags_NoTitleBar;
 	window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
 	window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
-	//ImGui::SetNextWindowSize(ImVec2(180, 50));
 	auto io = ImGui::GetIO();
 	ImVec2 window_pos = ImVec2(1.f, 1.f);
 	ImGui::SetNextWindowPos(window_pos);
@@ -780,6 +769,7 @@ void CAE::Application::start()
 		ImVec2 window_pos_pivot = ImVec2(1.0f, 0.0f);
 		ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
 		ImGui::SetNextWindowSize(ImVec2(window->getSize().x / 3, window->getSize().y - 1.f));
+
 		if (!ImGui::Begin("Tools Window", NULL, window_flags))
 			ImGui::End();
 		else

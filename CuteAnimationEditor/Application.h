@@ -26,8 +26,8 @@ namespace CAE
 		sf::Clock    deltaClock;
 		sf::Clock    pressClock; //used only in handleEvent, not global time
 		sf::Clock    attTimer;
-		//sf::Texture  t;
-		//sf::Sprite   attention;
+		sf::Texture  t;
+		sf::Sprite   attention;
 		sf::Vector2f mPrevPose; //used only in handleEvent
 		TAP          animPlayer;
 		//--------------------------used only in editorUpdate()--------------------------//
@@ -78,10 +78,10 @@ namespace CAE
 	public:
 		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
 		{
-			//t.loadFromFile("attention.png");
-			//attention.setTexture(t);
-			//attention.setScale({ 0.05f,0.05f });
-			//t.setSmooth(true);
+			t.loadFromFile("attention.png");
+			attention.setTexture(t);
+			attention.setScale({ 0.05f,0.05f });
+			t.setSmooth(true);
 			view.setSize(w.getDefaultView().getSize());
 			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}

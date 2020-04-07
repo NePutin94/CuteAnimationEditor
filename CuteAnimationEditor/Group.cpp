@@ -26,6 +26,18 @@ CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Lo
 		quad[i].color = sf::Color::Red;
 }
 
+CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5)
+{
+	auto [x, y, w, h] = box;
+	node[0] = ScaleNode({ x + w / 2, y }, 0);
+	node[1] = ScaleNode({ x + w,y + h / 2 }, 1);
+	node[2] = ScaleNode({ x + w / 2,y + h }, 2);
+	node[3] = ScaleNode({ x, y + h / 2 }, 3);
+	update();
+	for (int i = 0; i < 5; ++i)
+		quad[i].color = sf::Color::Red;
+}
+
 void CAE::Part::setRect(sf::FloatRect rect)
 {
 	box = rect;
@@ -56,6 +68,7 @@ void CAE::Group::load(json& j)
 	isEnable = j.at("isVisible").get<bool>();
 	animSpeed = j.at("animSpeed").get<float>();
 	scale = j.at("scale").get<float>();
+	int id = 1;
 	for (auto& part : j["data"])
 	{
 		sf::FloatRect r{};
@@ -63,6 +76,8 @@ void CAE::Group::load(json& j)
 		r.left = part["pos"]["x"].get<float>();
 		r.width = part["width"].get<float>();
 		r.height = part["height"].get<float>();
-		this->parts.emplace_back(r);
+
+		this->parts.emplace_back(r, id);
+		++id;
 	}
 }

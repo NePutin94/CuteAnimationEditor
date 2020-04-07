@@ -9,6 +9,45 @@ bool                       Console::AppLog::ScrollToBottom = 0;
 std::vector<std::string>   Console::AppLog::current_input = {};
 bool Console::AppLog::newLog = false;
 
+bool CAE::Console::AppLog::hasNewLogByTyp(logType t)
+{
+	if (Buffer.empty())
+		return false;
+	bool prev = newLog; newLog = false;
+	if (Buffer.back().type == t && prev)
+		return true;
+	else
+		return false;
+}
+
+void CAE::Console::AppLog::addLog(Log log)
+{
+	if (!Buffer.empty())
+	{
+		if (Buffer.back().pervText != log.pervText)
+			Buffer.emplace_back(log);
+		else
+			Buffer.back().count_update(++Buffer.back().log_count);
+	}
+	else
+		Buffer.emplace_back(log);
+	newLog = true;
+}
+
+void CAE::Console::AppLog::addLog(std::string s, logType t)
+{
+	if (!Buffer.empty())
+	{
+		if (Buffer.back().pervText != s)
+			Buffer.emplace_back(s, t);
+		else
+			Buffer.back().count_update(++Buffer.back().log_count);
+	}
+	else
+		Buffer.emplace_back(s, t);
+	newLog = true;
+}
+
 void Console::AppLog::saveLog(std::string_view path)
 {
 	std::ofstream out;
@@ -134,9 +173,9 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
 					if (item.type == logType::script)
 						ImGui::TextColored(item.color, item.text.c_str());
 				}
-				else if (item_current == "script_result")
+				else if (item_current == "message")
 				{
-					if (item.type == logType::script_result)
+					if (item.type == logType::message)
 						ImGui::TextColored(item.color, item.text.c_str());
 				}
 			}
@@ -164,11 +203,11 @@ Console::Log::Log(std::string clearText, logType t)
 	switch (t)
 	{
 	case logType::error:
-		color = ImVec4(1, 0.35, 0, 1);
+		color = ImVec4(1, 0.35f, 0, 1);
 		FormattedText += " type:error";
 		break;
 	case logType::info:
-		color = ImVec4(0, 1, 0.3, 1);
+		color = ImVec4(0, 1, 0.3f, 1);
 		FormattedText += " type:info";
 		break;
 	case logType::fatal:
@@ -180,12 +219,12 @@ Console::Log::Log(std::string clearText, logType t)
 		FormattedText += " type:system";
 		break;
 	case logType::script:
-		color = ImVec4(0.1, 0.5, 0.1, 1);
+		color = ImVec4(0.1f, 0.5f, 0.1f, 1);
 		FormattedText += " type:script";
 		break;
-	case logType::script_result:
-		color = ImVec4(0.1, 0.5, 0.1, 1);
-		FormattedText += " type:script_result";
+	case logType::message:
+		color = ImVec4(0.32f, 0.65f, 1.f, 1);
+		FormattedText += " type:message";
 		break;
 	}
 	FormattedText += " (1)]: ";

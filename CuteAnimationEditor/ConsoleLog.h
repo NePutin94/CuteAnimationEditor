@@ -18,12 +18,12 @@ namespace CAE
 			fatal,
 			system,
 			script,
-			script_result
+			message
 		};
 
 		constexpr std::string_view logType_s[] =
 		{
-			 "all", "error", "info", "fatal", "system" ,"script", "script_result"
+			 "all", "error", "info", "fatal", "system" ,"script", "message"
 		};
 
 		struct Log
@@ -54,36 +54,14 @@ namespace CAE
 				Buffer.shrink_to_fit();
 			}
 			static bool hasNewLog() { bool prev = newLog; newLog = false; return prev; }
-			static void addLog(Log log) {
-				if (!Buffer.empty())
-				{
-					if (Buffer.back().pervText != log.pervText)
-						Buffer.emplace_back(log);
-					else
-						Buffer.back().count_update(++Buffer.back().log_count);
-				}
-				else
-					Buffer.emplace_back(log);
-				newLog = true;
-			}
-			static void addLog(std::string s, logType t)
-			{
-				if (!Buffer.empty())
-				{
-					if (Buffer.back().pervText != s)
-						Buffer.emplace_back(s, t);
-					else
-						Buffer.back().count_update(++Buffer.back().log_count);
-				}
-				else
-					Buffer.emplace_back(s, t);
-				newLog = true;
-			}
+			static bool hasNewLogByTyp(logType t);
+			static void addLog(Log log);
+			static void addLog(std::string s, logType t);
 			static void saveLog(std::string_view path);
 			static void Draw(const char* title, bool* p_open);
-			static std::string_view lastLog() 
-			{ 
-				return Buffer.back().pervText; 
+			static std::string_view lastLog()
+			{
+				return Buffer.back().pervText;
 			}
 		};
 	} // namespace Console

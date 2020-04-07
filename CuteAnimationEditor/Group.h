@@ -50,16 +50,18 @@ namespace CAE
 		sf::VertexArray quad;
 		std::array<ScaleNode, 4> node;
 		bool isSelected;
+		int id;
 
 		void update();
 	public:
 		sf::FloatRect box;
 		Part(sf::FloatRect _rect);
-
+		Part(sf::FloatRect _rect, int id);
 		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
 		auto getRect() { return box; }
 
+		auto& getId() { return id; }
 		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect);
 	};
