@@ -9,6 +9,8 @@ namespace CAE
 	private:
 		AnimationAsset* currAsset;
 		std::vector<AnimationAsset*> animAssets;
+
+		std::vector<Part> editorSubArray;
 		enum class states
 		{
 			Null = 0,
@@ -26,8 +28,10 @@ namespace CAE
 		sf::Clock    deltaClock;
 		sf::Clock    pressClock; //used only in handleEvent, not global time
 		sf::Clock    attTimer;
-		sf::Texture  t;
-		sf::Sprite   attention;
+		sf::Texture  deleteTexture_ico;
+		sf::Sprite   deleteSprite_ico;
+		sf::Texture  addTexture_ico;
+		sf::Sprite   addSprite_ico;
 		sf::Vector2f mPrevPose; //used only in handleEvent
 		TAP          animPlayer;
 		//--------------------------used only in editorUpdate()--------------------------//
@@ -36,7 +40,7 @@ namespace CAE
 		sf::Vector2f m_c_prevPos;
 		sf::Vector2i m_p_prevPos;
 		ScaleNode* selectedNode;
-		Part*      selectedPart;
+		Part* selectedPart;
 		//--------------------------end--------------------------//
 
 		std::thread asyncNodeScale;
@@ -78,10 +82,16 @@ namespace CAE
 	public:
 		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
 		{
-			t.loadFromFile("attention.png");
-			attention.setTexture(t);
-			attention.setScale({ 0.05f,0.05f });
-			t.setSmooth(true);
+			deleteTexture_ico.loadFromFile("attention.png");
+			deleteTexture_ico.setSmooth(true);
+			deleteSprite_ico.setTexture(deleteTexture_ico);
+			//deleteSprite_ico.setScale({ 0.05f,0.05f });
+
+			addTexture_ico.loadFromFile("addico.png");
+			addTexture_ico.setSmooth(true);
+			addSprite_ico.setTexture(addTexture_ico);
+			//addSprite_ico.setScale({ 0.05f,0.05f });
+			
 			view.setSize(w.getDefaultView().getSize());
 			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}

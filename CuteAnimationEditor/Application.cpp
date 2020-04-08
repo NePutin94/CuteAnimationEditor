@@ -407,6 +407,7 @@ void CAE::Application::editor()
 		ImGui::Spacing();
 		ImGui::Text("anim groups: ");
 		ImGui::Spacing();
+		ImGui::SetNextItemWidth(32);
 
 		if (currAsset->groups.empty())
 			ImGui::TextColored(ImVec4(1, 0, 0, 1), "groups is empty");
@@ -433,7 +434,7 @@ void CAE::Application::editor()
 				return p;
 			};
 
-			ImGui::Image(attention, sf::Vector2f{ 32,32 });
+			ImGui::Image(deleteSprite_ico, sf::Vector2f{ 32,32 });
 			if (ImGui::BeginDragDropTarget())
 			{
 				if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
@@ -446,22 +447,67 @@ void CAE::Application::editor()
 				}
 				ImGui::EndDragDropTarget();
 			}
+			ImGui::SameLine();
+			ImGui::Image(addSprite_ico, sf::Vector2f{ 32,32 });
+			if (ImGui::IsWindowHovered() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
+			{
+				if (ImGui::GetIO().MouseReleased[0])
+				{
+					editorSubArray.emplace_back(sf::FloatRect(0, 0, 20, 20), editorSubArray.size() + 1);
+				}
+			}
+			if (ImGui::TreeNode("Local array"))
+			{
+				int sub_part_id = 0;
+				for (auto iter = editorSubArray.begin(); iter != editorSubArray.end(); ++iter)
+				{
+					ImGui::PushID(sub_part_id);
+					auto& part = *iter;
+					auto r = part.getRect();
+					ImGui::Selectable(make_text(part).c_str());
+
+					if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+					{
+						std::string str = std::to_string(-1) + ":" + std::to_string(sub_part_id);
+						const char* s = str.c_str();
+						ImGui::SetDragDropPayload("DAD", s, sizeof(s));
+						ImGui::Text("Swap %s", make_text(part).c_str());
+						ImGui::EndDragDropSource();
+					}
+					if (ImGui::BeginDragDropTarget())
+					{
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+						{
+							IM_ASSERT(payload->DataSize == sizeof(int));
+							const char* payload_n = (const char*)payload->Data;
+							auto [group_id, part_id] = parse_data(std::string(payload_n));
+							if (group_id == -1)
+							{
+								std::iter_swap(editorSubArray.begin() + part_id, iter);
+							}
+							else
+								std::iter_swap(currAsset->groups[group_id].getParts().begin() + part_id, iter);
+						}
+						ImGui::EndDragDropTarget();
+					}
+					ImGui::PopID();
+					++sub_part_id;
+				}
+				ImGui::TreePop();
+			}
 			int group_id = 0;
-			int part_id = 0;
 			for (auto& group : currAsset->groups)
 			{
 				ImGui::PushID(group_id);
 
 				if (ImGui::TreeNode(group.getName().c_str()))
 				{
-					if (ImGui::Button("add rect"))
-						group.getParts().emplace_back(sf::FloatRect(0, 0, 20, 20), group.getParts().back().getId() + 1);
+					int part_id = 0;
 
 					bool isVisible = group.isVisible();
 
 					ImGui::Checkbox("isVisible", &isVisible);
 					group.setVisible(isVisible);
-					
 					for (auto iter = group.getParts().begin(); iter != group.getParts().end(); ++iter)
 					{
 						ImGui::PushID(part_id);
@@ -483,14 +529,67 @@ void CAE::Application::editor()
 							{
 								IM_ASSERT(payload->DataSize == sizeof(int));
 								const char* payload_n = (const char*)payload->Data;
-								auto [_, num] = parse_data(std::string(payload_n));
-								std::iter_swap(group.getParts().begin() + num, iter);
+								auto [group_id, part_id] = parse_data(std::string(payload_n));
+								if (group_id == -1)
+								{
+									std::iter_swap(editorSubArray.begin() + part_id, iter);
+								}
+								else
+									std::iter_swap(currAsset->groups[group_id].getParts().begin() + part_id, iter);
 							}
 							ImGui::EndDragDropTarget();
 						}
 						ImGui::PopID();
 						++part_id;
 					}
+					ImGui::PushID(-1);
+					ImGui::Selectable("drag&drop copy");
+					if (ImGui::BeginDragDropTarget())
+					{
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+						{
+							IM_ASSERT(payload->DataSize == sizeof(int));
+							const char* payload_n = (const char*)payload->Data;
+							auto [group_n, part_n] = parse_data(std::string(payload_n));
+							
+							if (group_n == -1)
+							{
+								group.getParts().push_back(editorSubArray[part_n]);
+							}
+							else
+							{
+								auto& p = currAsset->groups[group_n].getParts();
+								group.getParts().push_back(p[part_n]);
+							}	
+						}
+						ImGui::EndDragDropTarget();
+					}
+					ImGui::PopID();
+					ImGui::PushID(-2);
+					ImGui::Selectable("drag&drop move");
+					if (ImGui::BeginDragDropTarget())
+					{
+						if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+						{
+							IM_ASSERT(payload->DataSize == sizeof(int));
+							const char* payload_n = (const char*)payload->Data;
+							auto [group_n, part_n] = parse_data(std::string(payload_n));			
+							if (group_n == -1)
+							{
+								group.getParts().push_back(editorSubArray[part_n]);
+								editorSubArray.erase(editorSubArray.begin() + part_n);
+							}
+							else
+							{
+								auto& g = currAsset->groups[group_n];
+								auto& p = currAsset->groups[group_n].getParts();
+								group.getParts().push_back(p[part_n]);
+								g.getParts().erase(g.getParts().begin() + part_n);
+							}
+						}
+						ImGui::EndDragDropTarget();
+					}
+					ImGui::PopID();
 					ImGui::TreePop();
 				}
 				ImGui::PopID();
