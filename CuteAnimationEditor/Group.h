@@ -49,9 +49,10 @@ namespace CAE
 	private:
 		sf::VertexArray quad;
 		std::array<ScaleNode, 4> node;
+		sf::Color color;
 		bool isSelected;
-		int id;
-
+		int id; //just local value, is specified at runtime
+		
 		void update();
 	public:
 		sf::FloatRect box;
@@ -59,9 +60,10 @@ namespace CAE
 		Part(sf::FloatRect _rect, int id);
 		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
+		void changeColor(sf::Color c);
 		auto getRect() { return box; }
 
-		auto& getId() { return id; }
+		auto getId() { return id; }
 		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect);
 	};
@@ -75,9 +77,13 @@ namespace CAE
 		float scale;
 
 		std::string name;
-		std::vector<Part> parts;
+		std::vector<std::shared_ptr<Part>> parts;
 	public:
 		Group() = default;
+		~Group()
+		{
+
+		}
 		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f) {}
 
 		void setSpeed(float sp) { animSpeed = sp; }
@@ -91,7 +97,6 @@ namespace CAE
 		auto end()       const { return parts.end(); }
 		bool isVisible() const { return isEnable; }
 		auto& getParts() { return parts; }
-
 		void save(json& j);
 		void load(json& j);
 	};

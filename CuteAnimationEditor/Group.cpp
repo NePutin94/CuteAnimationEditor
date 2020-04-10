@@ -14,7 +14,7 @@ void CAE::Part::update()
 	node[3].setPosition({ x, y + h / 2 });
 }
 
-CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5)
+CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent)
 {
 	auto [x, y, w, h] = box;
 	node[0] = ScaleNode({ x + w / 2, y }, 0);
@@ -22,11 +22,10 @@ CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Lo
 	node[2] = ScaleNode({ x + w / 2,y + h }, 2);
 	node[3] = ScaleNode({ x, y + h / 2 }, 3);
 	update();
-	for (int i = 0; i < 5; ++i)
-		quad[i].color = sf::Color::Red;
+	changeColor(sf::Color::Red);
 }
 
-CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5)
+CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent)
 {
 	auto [x, y, w, h] = box;
 	node[0] = ScaleNode({ x + w / 2, y }, 0);
@@ -34,8 +33,17 @@ CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(Prior
 	node[2] = ScaleNode({ x + w / 2,y + h }, 2);
 	node[3] = ScaleNode({ x, y + h / 2 }, 3);
 	update();
-	for (int i = 0; i < 5; ++i)
-		quad[i].color = sf::Color::Red;
+	changeColor(sf::Color::Red);
+}
+
+void CAE::Part::changeColor(sf::Color c)
+{
+	if (c != color)
+	{
+		for (int i = 0; i < 5; ++i)
+			quad[i].color = c;
+		color = c;
+	}
 }
 
 void CAE::Part::setRect(sf::FloatRect rect)
@@ -54,10 +62,10 @@ void CAE::Group::save(json& j)
 	auto& data = j["data"];
 	for (auto& part : parts)
 	{
-		data[count]["pos"]["x"] = part.box.left;
-		data[count]["pos"]["y"] = part.box.top;
-		data[count]["width"] = part.box.width;
-		data[count]["height"] = part.box.height;
+		data[count]["pos"]["x"] = part->box.left;
+		data[count]["pos"]["y"] = part->box.top;
+		data[count]["width"] = part->box.width;
+		data[count]["height"] = part->box.height;
 		++count;
 	}
 }
@@ -77,7 +85,7 @@ void CAE::Group::load(json& j)
 		r.width = part["width"].get<float>();
 		r.height = part["height"].get<float>();
 
-		this->parts.emplace_back(r, id);
+		this->parts.emplace_back(std::make_shared<Part>(r, id));
 		++id;
 	}
 }

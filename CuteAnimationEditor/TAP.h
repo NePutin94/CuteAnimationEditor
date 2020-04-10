@@ -85,7 +85,7 @@ namespace CAE
 				anim.speed = group.getSpeed();
 				anim.frameCount = group.getParts().size() - 1; //numbering starts from zero
 				for (auto& part : group.getParts())
-					anim.frames.push_back(part.getRect());
+					anim.frames.push_back(part->getRect());
 				this->emplace_back(anim);
 				if (this->empty())
 					currAnim = &(*this->begin());

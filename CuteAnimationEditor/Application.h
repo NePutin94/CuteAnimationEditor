@@ -10,7 +10,7 @@ namespace CAE
 		AnimationAsset* currAsset;
 		std::vector<AnimationAsset*> animAssets;
 
-		std::vector<Part> editorSubArray;
+		std::vector<std::shared_ptr<Part>> editorSubArray;
 		enum class states
 		{
 			Null = 0,
@@ -40,7 +40,8 @@ namespace CAE
 		sf::Vector2f m_c_prevPos;
 		sf::Vector2i m_p_prevPos;
 		ScaleNode* selectedNode;
-		Part* selectedPart;
+		std::shared_ptr<Part> selectedPart;
+		std::shared_ptr<Part> lastSelected;
 		//--------------------------end--------------------------//
 
 		std::thread asyncNodeScale;
@@ -74,6 +75,7 @@ namespace CAE
 		void viewSettings();
 		void createAssets();
 		void editor();
+		void editorDragDropLogic();
 		void mainWindow();
 		void viewLoadedAssets();
 		void saveAsset();
