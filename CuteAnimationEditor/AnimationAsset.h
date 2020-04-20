@@ -16,7 +16,7 @@ namespace CAE
 		bool saveAsset(std::string_view);
 	public:
 		AnimationAsset(std::string_view _path);
-		~AnimationAsset() { saveAsset(assetPath); };
+		~AnimationAsset() {/* saveAsset(assetPath);*/ };
 		auto begin()  { return groups.begin(); }
 		auto end()    { return groups.end(); }
 		auto getName() const { return name; }

@@ -8,44 +8,76 @@ vector<Console::Log>       Console::AppLog::Buffer = {};
 bool                       Console::AppLog::ScrollToBottom = 0;
 std::vector<std::string>   Console::AppLog::current_input = {};
 bool Console::AppLog::newLog = false;
+size_t Console::AppLog::offset = 0;
+std::shared_mutex Console::AppLog::globalMutex;
 
 bool CAE::Console::AppLog::hasNewLogByTyp(logType t)
 {
+	std::unique_lock<std::shared_mutex> lock{ globalMutex };
 	if (Buffer.empty())
 		return false;
 	bool prev = newLog; newLog = false;
-	if (Buffer.back().type == t && prev)
-		return true;
+	if (offset == 0) //if offset is zero, we look at the end of the vector
+	{
+		if (Buffer.back().type == t && prev)
+		{
+			offset = Buffer.size() - 1; //Just change the offset value from zero to something else, most likely there is more than one element in the vector
+			return true;
+		}
+	}
 	else
-		return false;
+	{
+		//We know the location of the previous log displayed on the screen, 
+		//just see if there are still logs that we might have missed (hasNewLogByTyp may not be called every application tick)
+		auto it = std::find_if(Buffer.begin() + (offset + 1), Buffer.end(), [t](auto val) {return val.type == t; });
+		if (it != Buffer.end())
+		{
+			offset = std::distance(Buffer.begin(), it); //if we find such a log(the first one we find), we calculate offset to it from the beginning of the vector
+			return true;
+		}
+	}
+	return false;
 }
 
 void CAE::Console::AppLog::addLog(Log log)
 {
+	std::unique_lock<std::shared_mutex> lock{ globalMutex };
+	newLog = true;
 	if (!Buffer.empty())
 	{
 		if (Buffer.back().pervText != log.pervText)
 			Buffer.emplace_back(log);
 		else
+		{
+			newLog = false;
+			offset = 0;
+			//We added a copy of the log, so the next log to output will be exactly at the end of the vector
 			Buffer.back().count_update(++Buffer.back().log_count);
+		}
 	}
 	else
 		Buffer.emplace_back(log);
-	newLog = true;
+	
 }
 
 void CAE::Console::AppLog::addLog(std::string s, logType t)
 {
+	std::unique_lock<std::shared_mutex> lock{ globalMutex };
+	newLog = true;
 	if (!Buffer.empty())
 	{
 		if (Buffer.back().pervText != s)
 			Buffer.emplace_back(s, t);
 		else
+		{
+			newLog = false;
+			offset = 0;
+			//We added a copy of the log, so the next log to output will be exactly at the end of the vector
 			Buffer.back().count_update(++Buffer.back().log_count);
+		}
 	}
 	else
 		Buffer.emplace_back(s, t);
-	newLog = true;
 }
 
 void Console::AppLog::saveLog(std::string_view path)

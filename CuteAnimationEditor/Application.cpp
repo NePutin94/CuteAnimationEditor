@@ -15,6 +15,12 @@ bool operator>(sf::Vector2i f, sf::Vector2i s)
 	return !(f < s);
 }
 
+template<class T>
+sf::Rect<T> round(sf::Rect<T> value)
+{
+	return sf::Rect <T>{round(value.left), round(value.top), round(value.width), round(value.height)};
+}
+
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -128,7 +134,6 @@ void CAE::Application::draw()
 	if (attTimer.getElapsedTime() < sf::seconds(2) && newMessage)
 	{
 		showLog(Console::AppLog::lastLog());
-		//window->draw(attention);
 	}
 	else newMessage = false;
 
@@ -138,19 +143,22 @@ void CAE::Application::draw()
 
 void CAE::Application::update()
 {
-	if (Console::AppLog::hasNewLogByTyp(Console::message))
+	if (attTimer.getElapsedTime() > sf::seconds(2))
 	{
-		newMessage = true;
-		attTimer.restart();
+		if (Console::AppLog::hasNewLogByTyp(Console::message))
+		{
+			newMessage = true;
+			attTimer.restart();
+		}
 	}
 
-	if (currAsset != nullptr)
-		if (creatorMode)
-			editorUpdate();
+	if (currAsset != nullptr && creatorMode)
+		editorUpdate();
 }
 
 void CAE::Application::editorUpdate()
 {
+	//note: 
 	m_c_prevPos = m_c_pos;
 	m_c_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
 	m_p_pos = sf::Mouse::getPosition(*window);
@@ -203,15 +211,16 @@ void CAE::Application::editorUpdate()
 				else
 				{
 					if (selectedPart != nullptr)
-						lastSelected = selectedPart; 
-					selectedPart = nullptr;
+						lastSelected = selectedPart;
+					selectedPart.reset();
 					m_p_prevPos = m_p_pos;
 				}
 
 				////////////////////////////////////SCALE//////////////////////////////////////////
 				static int selectedPoint = -1;
-				for (auto& p : elem->getNode())
-					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+				{
+					for (auto& p : elem->getNode())
 						if ((p.getGlobalBounds().contains(m_c_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
 						{
 							pointSelected = true;
@@ -219,24 +228,43 @@ void CAE::Application::editorUpdate()
 							selectedNode = &p;
 							if (auto rect = elem->getRect(); m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
 							{
-								auto delta = sf::Vector2f{ m_c_pos - m_c_prevPos };
+								sf::Vector2f value = { 0,0 };
+								if (!useFloat)
+								{
+									rect = round(rect);
+									sf::Vector2i delta = m_p_pos - m_p_prevPos2;
+									int factor = 20;
+									if (abs(delta.x) > factor || abs(delta.y) > factor)
+									{
+										value.x += delta.x % factor;
+										value.y += delta.y % factor;
+										m_p_prevPos2 = m_p_pos;
+									}
+								}
+								else
+									value = m_c_pos - m_c_prevPos;
 								switch (p.side)
 								{
 								case 0:
-									elem->setRect(sf::FloatRect(rect.left, rect.top + delta.y, rect.width, rect.height + delta.y * -1));
+									elem->setRect(sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height + value.y * -1));
 									break;
 								case 1:
-									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + delta.x, rect.height));
+									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
 									break;
 								case 2:
-									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + delta.y));
+									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
 									break;
 								case 3:
-									elem->setRect(sf::FloatRect(rect.left + delta.x, rect.top, rect.width + delta.x * -1, rect.height));
+									elem->setRect(sf::FloatRect(rect.left + value.x, rect.top, rect.width + value.x * -1, rect.height));
 									break;
 								}
 							}
 						}
+				}
+				else
+				{
+					m_p_prevPos2 = m_p_pos;
+				}
 			}
 		}
 	}
@@ -247,9 +275,7 @@ void CAE::Application::loadAssets()
 	ImGui::BeginChild("Load assets");
 	ImGui::InputText("Texture path", buff, IM_ARRAYSIZE(buff));
 	if (ImGui::Button("Load"))
-	{
 		loadAsset(buff);
-	}
 	ImGui::EndChild();
 }
 
@@ -457,13 +483,13 @@ void CAE::Application::editorDragDropLogic()
 			IM_ASSERT(payload->DataSize == sizeof(int));
 			const char* payload_n = (const char*)payload->Data;
 			auto [group_n, part_n] = parse_data(std::string(payload_n));
-			if (group_n == -1)
+			if (group_n == -1)//editorSubArray erase
 			{
 
 			}
-			else if (group_n == -2)
+			else if (group_n == -2) //Group erase
 				currAsset->groups.erase(currAsset->groups.begin() + part_n);
-			else
+			else //Part erase
 			{
 				auto& p = currAsset->groups[group_n].getParts();
 				p.erase(p.begin() + part_n);
@@ -477,7 +503,7 @@ void CAE::Application::editorDragDropLogic()
 	{
 		if (ImGui::GetIO().MouseReleased[0])
 		{
-			editorSubArray.emplace_back(new Part(sf::FloatRect(0, 0, 20, 20), ++global_id));
+			editorSubArray.emplace_back(std::make_shared<Part>(sf::FloatRect(0, 0, 20, 20), ++global_id));
 		}
 	}
 	//////////////////END//////////////////
@@ -704,6 +730,8 @@ void CAE::Application::drawMenuBar()
 				state = states::Editor;
 			if (ImGui::MenuItem("Loaded Assets", NULL, state == states::loadedAssets))
 				state = states::loadedAssets;
+			if (ImGui::MenuItem("Magic Tool", NULL, state == states::macgicTool))
+				state = states::macgicTool;
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Settings"))
@@ -744,6 +772,9 @@ void CAE::Application::drawUI()
 		break;
 	case CAE::Application::states::Null:
 		mainWindow();
+		break;
+	case CAE::Application::states::macgicTool:
+		magicSelection();
 		break;
 	case CAE::Application::states::CreateAsset:
 		createAssets();
@@ -826,7 +857,17 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 			auto ptr = new CAE::AnimationAsset{ copyBuffer };
 			if (ptr->loadFromFile())
 			{
-				animAssets.push_back(ptr);
+				auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
+					{
+						return ptr->getName() == val->getName();
+					});
+				if (it != animAssets.end())
+				{
+					Console::AppLog::addLog("Assets loaded arleady", Console::message);
+					delete ptr;
+				}
+				else
+					animAssets.push_back(ptr);
 				if (setAsCurr)
 					currAsset = *animAssets.begin();
 			}
@@ -841,10 +882,94 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 		Console::AppLog::addLog("File does not exist or input is empty!", Console::message);
 }
 
+void CAE::Application::magicSelection()
+{
+	ImGui::BeginChild("Magic Selection Settings");
+	ImGui::SliderInt("Type of transformation", &magicTool.mode, 1, 3);
+	ImGui::Checkbox("user morph", &magicTool.useMorph);
+	ImGui::Checkbox("user gray", &magicTool.gray);
+	ImGui::SliderInt("thresh", &magicTool.thresh, -255, 255);
+	ImGui::SliderInt("Color add value", &magicTool.add, -255, 255);
+	if (magicTool.useMorph)
+	{
+		ImGui::SliderInt("morphIteration", &magicTool.morph_iteration, -10, 10);
+		ImGui::SliderInt("Rect w", &magicTool.kernel_rect.x, 0, 255);
+		ImGui::SliderInt("Rect g", &magicTool.kernel_rect.y, 0, 255);
+	}
+
+	if (ImGui::Button("Processed Image"))
+	{
+		magicTool.source_image = sfml2opencv(currAsset->getTexture()->copyToImage(), true);
+		magicTool.transform_image = cv::Mat::zeros(magicTool.source_image.size(), magicTool.source_image.type());
+		for (int i = 0; i < magicTool.transform_image.rows; ++i)
+		{
+			for (int j = 0; j < magicTool.transform_image.cols; ++j)
+			{
+				auto p = magicTool.source_image.at<cv::Vec4b>(i, j);
+				if (p[3] != 0)
+				{
+					p[0] += magicTool.add;
+					p[1] += magicTool.add;
+					p[2] += magicTool.add;
+				}
+				magicTool.transform_image.at<cv::Vec4b>(i, j) = p;
+			}
+		}
+		if (magicTool.gray)
+			cvtColor(magicTool.transform_image, magicTool.transform_image, CV_RGB2GRAY);
+		switch (magicTool.mode)
+		{
+		case 1:
+		{
+			cv::Mat sub_mat = cv::Mat::zeros(magicTool.transform_image.size(), CV_8UC3);
+			cv::Canny(magicTool.transform_image, sub_mat, magicTool.thresh, 255, 3);
+			magicTool.transform_image = sub_mat;
+		}
+		case 2:
+			cv::threshold(magicTool.transform_image, magicTool.transform_image, magicTool.thresh, 255, 0);
+		default:
+			break;
+		}
+		if (magicTool.useMorph)
+		{
+			auto rect_kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(magicTool.kernel_rect.x, magicTool.kernel_rect.y));
+			cv::Mat sub_mat = cv::Mat::zeros(magicTool.transform_image.size(), CV_8UC3);
+			cv::morphologyEx(magicTool.transform_image, sub_mat, cv::MORPH_CLOSE, rect_kernel, cv::Point(-1, -1), magicTool.morph_iteration);
+			magicTool.transform_image = sub_mat;
+		}
+		cv::imshow("th2", magicTool.transform_image);
+	}
+	if (ImGui::Button("Get Rects"))
+	{
+		vector<vector<cv::Point>> contours;
+		vector<cv::Vec4i> hierarchy;
+		findContours(magicTool.transform_image, contours, hierarchy, cv::RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
+
+		////addWeighted(image_2, 0.75, contours, 0.25, 0, drawing);
+		////drawContours(drawing, contours, -1, cv::Scalar(255));
+		//cv::Mat rect = cv::Mat::zeros(th2.size(), CV_8UC3);
+		//vector<vector<cv::Point> > contours_poly(contours.size());
+		//vector<cv::Rect> boundRect(contours.size());
+		//vector<cv::Point2f>centers(contours.size());
+		//vector<float>radius(contours.size());
+		////for (auto& k : contours)
+		////{
+		////	//vector<Point> poly;
+		////	//approxPolyDP(k, poly, 3, true);
+		////	boundRect.emplace_back(cv::boundingRect(k));
+		////	cv::rectangle(rect, cv::boundingRect(k), cv::Scalar(255, 60, 60, 100));
+		////}
+		printExternalContours(magicTool.source_image, contours, hierarchy, 0);
+		cv::imshow("th3", magicTool.source_image);
+	}
+	ImGui::EndChild();
+}
+
 void CAE::Application::showLog(std::string_view txt)
 {
 	ImGuiWindowFlags window_flags = 0;
 	window_flags |= ImGuiWindowFlags_NoScrollbar;
+	window_flags |= ImGuiWindowFlags_NoFocusOnAppearing;
 	window_flags |= ImGuiWindowFlags_NoCollapse;
 	window_flags |= ImGuiWindowFlags_NoMove;
 	window_flags |= ImGuiWindowFlags_NoResize;

@@ -52,12 +52,13 @@ namespace CAE
 		sf::Color color;
 		bool isSelected;
 		int id; //just local value, is specified at runtime
-		
+
 		void update();
 	public:
 		sf::FloatRect box;
-		Part(sf::FloatRect _rect);
-		Part(sf::FloatRect _rect, int id);
+		explicit Part(sf::FloatRect _rect);
+		explicit Part(sf::FloatRect _rect, int id);
+		~Part() = default;
 		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
 		void changeColor(sf::Color c);
@@ -79,12 +80,9 @@ namespace CAE
 		std::string name;
 		std::vector<std::shared_ptr<Part>> parts;
 	public:
-		Group() = default;
-		~Group()
-		{
-
-		}
+		Group() = default;	
 		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f) {}
+		~Group() = default;
 
 		void setSpeed(float sp) { animSpeed = sp; }
 		void setScale(float sc) { scale = sc; }

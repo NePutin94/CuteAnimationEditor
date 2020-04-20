@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <SFML/Graphics.hpp>
+#include <shared_mutex>
 using namespace std;
 namespace CAE
 {
@@ -44,7 +45,8 @@ namespace CAE
 			static std::vector<std::string> current_input;
 			static vector<Log> Buffer;
 			static bool newLog;
-
+			static size_t offset;
+			static std::shared_mutex globalMutex;
 		public:
 			AppLog() = default;
 			~AppLog() { saveLog("Data/log.txt"); }
@@ -59,9 +61,14 @@ namespace CAE
 			static void addLog(std::string s, logType t);
 			static void saveLog(std::string_view path);
 			static void Draw(const char* title, bool* p_open);
-			static std::string_view lastLog()
+			static std::string lastLog()
 			{
-				return Buffer.back().pervText;
+				std::shared_lock<std::shared_mutex> lock{ globalMutex };
+				if (offset == 0)
+					return Buffer.back().pervText;
+				else
+					return (Buffer.begin() + offset)->pervText;
+				//return Buffer.back().pervText;
 			}
 		};
 	} // namespace Console
