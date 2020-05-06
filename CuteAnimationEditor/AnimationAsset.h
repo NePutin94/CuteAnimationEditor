@@ -10,15 +10,15 @@ namespace CAE
 		std::string assetPath;
 		std::string name;
 		sf::Texture texture;
-		std::vector<Group> groups;
+		std::vector<std::shared_ptr<Group>> groups;
 
 		bool loadFromFile();
 		bool saveAsset(std::string_view);
 	public:
 		AnimationAsset(std::string_view _path);
 		~AnimationAsset() {/* saveAsset(assetPath);*/ };
-		auto begin()  { return groups.begin(); }
-		auto end()    { return groups.end(); }
+		auto begin() { return groups.begin(); }
+		auto end() { return groups.end(); }
 		auto getName() const { return name; }
 		auto getPath() { return texturePath; }
 		std::pair<int, int> getWH() { return std::make_pair(texture.getSize().x, texture.getSize().y); }

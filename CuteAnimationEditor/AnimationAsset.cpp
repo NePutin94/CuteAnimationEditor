@@ -15,8 +15,8 @@ bool CAE::AnimationAsset::loadFromFile()
 			texturePath = info.at("texturePath").get<std::string>();
 			for (auto& group : j.at("Groups"))
 			{
-				groups.emplace_back(Group());
-				groups.back().load(group);
+				groups.emplace_back(std::make_shared<Group>(Group()));
+				groups.back()->load(group);
 			}
 		}
 		catch (json::exception & e)
@@ -45,7 +45,7 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
 	auto& g = j["Groups"];
 	for (auto& group : groups)
 	{
-		group.save(g[i]);
+		group->save(g[i]);
 		++i;
 	}
 	o << std::setw(4) << j;

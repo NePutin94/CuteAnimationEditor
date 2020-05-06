@@ -74,17 +74,17 @@ namespace CAE
 			return (hasAnimation()) ? currAnim->tick(t) : sf::FloatRect{0,0,0,0};
 		}
 
-		void parseAnimationAssets(std::vector<Group> groups) 
+		void parseAnimationAssets(std::vector<std::shared_ptr<Group>> groups) 
 		{
 			clear();
 			currAnim = nullptr;
-			for (auto& group : groups)
+			for (auto group : groups)
 			{
 				CaeAnimation anim;
-				anim.name = group.getName();
-				anim.speed = group.getSpeed();
-				anim.frameCount = group.getParts().size() - 1; //numbering starts from zero
-				for (auto& part : group.getParts())
+				anim.name = group->getName();
+				anim.speed = group->getSpeed();
+				anim.frameCount = group->getParts().size() - 1; //numbering starts from zero
+				for (auto& part : group->getParts())
 					anim.frames.push_back(part->getRect());
 				this->emplace_back(anim);
 				if (this->empty())

@@ -1,6 +1,7 @@
 #pragma once
 #include "AnimationAsset.h"
 #include "TAP.h"
+#include "MagicTool.h"
 #include <future>
 #include <opencv2/imgproc/types_c.h>
 #include <opencv2/imgproc/imgproc_c.h>
@@ -11,51 +12,6 @@
 
 namespace CAE
 {
-	inline cv::Mat sfml2opencv(const sf::Image& img, bool toBGRA = false, bool fixZeroTransp = false)
-	{
-		cv::Size size(img.getSize().x, img.getSize().y);
-		cv::Mat mat(size, CV_8UC4, (void*)img.getPixelsPtr(), cv::Mat::AUTO_STEP);
-		if (fixZeroTransp)
-			for (int i = 0; i < mat.rows; ++i)
-			{
-				for (int j = 0; j < mat.cols; ++j)
-				{
-					auto& p = mat.at<cv::Vec4b>(i, j);
-					if (p[0] == 0 && p[1] == 0 && p[2] == 0 && p[3] == 0)
-					{
-						p[0] = 255;
-						p[1] = 255;
-						p[2] = 255;
-						p[3] = 0;
-					}
-				}
-			}
-		if (toBGRA)
-			cv::cvtColor(mat, mat, cv::COLOR_RGBA2BGRA);
-		return mat.clone();
-	}
-	inline void printExternalContours(cv::Mat img, vector<vector<cv::Point>> const& contours, vector<cv::Vec4i> const& hierarchy, int const idx)
-	{
-		//for every contour of the same hierarchy level
-		for (int i = idx; i >= 0; i = hierarchy[i][0])
-		{
-			//print it
-			//cv::drawContours(img, contours, i, cv::Scalar(255));
-			//out.emplace_back(cv::boundingRect(contours[i]));
-			cv::rectangle(img, cv::boundingRect(contours[i]), cv::Scalar(120, 120, 255, 255));
-			//for every of its internal contours
-			//for (int j = hierarchy[i][2]; j >= 0; j = hierarchy[j][0])
-			//{
-			//	//	//recursively print the external contours of its children
-			//	printExternalContours(img, contours, hierarchy, hierarchy[j][2]);
-			//}
-		}
-		//for (auto i = 0; i < contours.size(); ++i)
-		//{
-		//	if (hierarchy[i][2] == -1)
-		//		cv::rectangle(img, cv::boundingRect(contours[i]), cv::Scalar(60, 60, 255, 200));
-		//}
-	}
 	class Application
 	{
 	private:
@@ -75,19 +31,6 @@ namespace CAE
 			WindowSettings,
 			Exit
 		} state;
-
-		struct 
-		{
-			cv::Mat source_image;
-			cv::Mat transform_image;
-			bool gray = false;
-			bool useMorph = false;
-			int thresh = 0;
-			int add = 0;
-			int morph_iteration = 0; 
-			int mode = 1;
-			sf::Vector2i kernel_rect = { 0,0 };
-		} magicTool;
 
 		sf::RenderWindow* window;
 		sf::View     view;
@@ -110,7 +53,10 @@ namespace CAE
 		ScaleNode* selectedNode;
 		std::shared_ptr<Part> selectedPart;
 		std::shared_ptr<Part> lastSelected;
+		std::shared_ptr<Group> selectedGroup;
 		//--------------------------end--------------------------//
+
+		MagicTool magicTool;
 
 		std::thread asyncNodeScale;
 		float ftStep{ 1.f }, ftSlice{ 1.f }, lastFt{ 1.f }, currentSlice{ 0.f };
@@ -123,6 +69,7 @@ namespace CAE
 		bool LogConsole;
 		bool useMouse;
 		bool creatorMode;
+		bool toolsWindowFocused;
 		bool pointSelected;
 		bool useFloat;
 		bool newMessage;
