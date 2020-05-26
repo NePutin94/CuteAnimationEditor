@@ -4,3 +4,6 @@
 *.filters
 *.user
 Debug/
+CuteAnimationEditor/Release/
+Release/
+*.png

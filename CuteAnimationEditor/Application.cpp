@@ -23,6 +23,12 @@ sf::Rect<T> round(sf::Rect<T> value)
 
 void CAE::Application::handleEvent(sf::Event& event)
 {
+
+	/*MyEvent = {Event.type, Event.key}
+	handler.push(MyEvent, action())
+
+	handler.update(sf::event)*/
+
 	while (window->pollEvent(event))
 	{
 		if (event.type == sf::Event::Closed)
@@ -30,91 +36,51 @@ void CAE::Application::handleEvent(sf::Event& event)
 			state = states::Exit;
 			break;
 		}
-		if (event.type == sf::Event::KeyReleased)
-		{
-			if (event.key.code == sf::Keyboard::Delete)
-			{
-				if (selectedGroup != nullptr && currAsset != nullptr && lastSelected != nullptr)
-				{
-					auto& ar = selectedGroup->getParts();
-					ar.erase(std::find_if(ar.begin(), ar.end(), [this](std::shared_ptr<Part> p) {return lastSelected.get() == p.get(); }));
-					lastSelected.reset();
-				}
-			}
-			if (event.key.code == sf::Keyboard::F1)
-			{
-				useFloat = !useFloat;
-				Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::message);
-			}
-			if (event.key.code == sf::Keyboard::F2)
-			{
-				useMouse = !useMouse;
-				Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::message);
-			}
-		}
-		if (event.type == sf::Event::MouseButtonReleased)
-			if (event.key.code == sf::Mouse::Button::Left)
-				pointSelected = false;
 
-		if (event.type == sf::Event::MouseWheelScrolled && !toolsWindowFocused)
-		{
-			if (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel) {}
-			else if (event.mouseWheelScroll.wheel == sf::Mouse::HorizontalWheel) {}
+		eManager.updateEvent(event);
 
-			auto prev = view.getSize();
+		//if (event.type == sf::Event::MouseWheelScrolled && !toolsWindowFocused)
+		//{
+		//	auto prev = view.getSize();
 
-			if (event.mouseWheelScroll.delta < 0)
-			{
-				prev.x *= scaleFactor;
-				prev.y *= scaleFactor;
-				nodeSize += 0.3;
-				scaleSign = 1;
-			}
-			else
-			{
-				prev.x /= scaleFactor;
-				prev.y /= scaleFactor;
-				nodeSize -= 0.3;
-				scaleSign = -1;
-			}
+		//	if (event.mouseWheelScroll.delta < 0)
+		//	{
+		//		prev.x *= scaleFactor;
+		//		prev.y *= scaleFactor;
+		//		nodeSize += 0.3;
+		//		scaleSign = 1;
+		//	}
+		//	else
+		//	{
+		//		prev.x /= scaleFactor;
+		//		prev.y /= scaleFactor;
+		//		nodeSize -= 0.3;
+		//		scaleSign = -1;
+		//	}
 
-			if (asyncNodeScale.joinable())
-				asyncNodeScale.join();
+		//	if (asyncNodeScale.joinable())
+		//		asyncNodeScale.join();
 
-			asyncNodeScale = std::thread(
-				[this]()
-				{
-					if (currAsset != nullptr)
-					{
-						for (auto group : *currAsset) //yep, one day it may fall
-							for (auto part : *group) //yep, one day it may fall
-								for (auto& node : part->getNode()) //yep, one day it may fall
-									node.updateRadius(nodeSize); //yep, one day it may fall
-					}
-				});
+		//	asyncNodeScale = std::thread(
+		//		[this]()
+		//		{
+		//			if (currAsset != nullptr)
+		//			{
+		//				for (auto group : *currAsset) //yep, one day it may fall
+		//					for (auto part : *group) //yep, one day it may fall
+		//						for (auto& node : part->getNode()) //yep, one day it may fall
+		//							node.updateRadius(nodeSize); //yep, one day it may fall
+		//			}
+		//		});
 
-			view.setSize(prev);
-			viewUpdated();
-		}
+		//	view.setSize(prev);
+		//	viewUpdated();
+		//}
 		ImGui::SFML::ProcessEvent(event);
 	}
-
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
-		if (useMouse)
-		{
-			auto mCurrPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
-			auto delta = mPrevPose - mCurrPose;
-			view.move(delta);
-			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-		}
-
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Tilde) && pressClock.getElapsedTime().asMilliseconds() > 500)
-	{
-		LogConsole = !LogConsole;
-		pressClock.restart();
-	}
-
-	mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
+	eManager.updateMousePosition(*window, view); //it must be performed before all updates for the current frame
+	eManager.updateInput();
+	//mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
 }
 
 void CAE::Application::draw()
@@ -207,10 +173,11 @@ void CAE::Application::editorUpdate()
 							selectedPart = elem;
 							selectedGroup = group;
 							selectedPart->changeColor(sf::Color::Green);
-							//lasSelectedPart may no longer be in the array, but because lastSelected is shared_ptr 
-							//resource will not be deleted, in this case we will just change the color 
-							//for the essentially dead object(which is still valid)
+							//lasSelectedPart may no longer be in the array
+							//But resource will not be deleted, in this case we will just change the color 
+							//for the essentially 'dead' object(which is still valid)
 							//it will be released when the lastSelected pointer changes to selectetPart
+							//If it was not deleted, we will still just change the color
 							if (lastSelected != nullptr && lastSelected != selectedPart)
 							{
 								lastSelected->changeColor(sf::Color::Red);
@@ -931,6 +898,69 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 		Console::AppLog::addLog("File does not exist or input is empty!", Console::message);
 }
 
+void CAE::Application::changeMovingMode_e(sf::Event&)
+{
+	useFloat = !useFloat;
+	Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::message);
+}
+
+void CAE::Application::useMouseToMove_e(sf::Event&)
+{
+	useMouse = !useMouse;
+	Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::message);
+}
+
+void CAE::Application::deletSelectedPart_e(sf::Event&)
+{
+	if (selectedGroup != nullptr && currAsset != nullptr && lastSelected != nullptr)
+	{
+		auto& ar = selectedGroup->getParts();
+		ar.erase(std::find_if(ar.begin(), ar.end(), [this](std::shared_ptr<Part> p) {return lastSelected.get() == p.get(); }));
+		lastSelected.reset();
+	}
+}
+
+void CAE::Application::viewScale_e(sf::Event& event)
+{
+	if (!toolsWindowFocused)
+	{
+		auto prev = view.getSize();
+
+		if (event.mouseWheelScroll.delta < 0)
+		{
+			prev.x *= scaleFactor;
+			prev.y *= scaleFactor;
+			nodeSize += 0.3;
+			scaleSign = 1;
+		}
+		else
+		{
+			prev.x /= scaleFactor;
+			prev.y /= scaleFactor;
+			nodeSize -= 0.3;
+			scaleSign = -1;
+		}
+
+		if (asyncNodeScale.joinable())
+			asyncNodeScale.join();
+
+		asyncNodeScale = std::thread(
+			[this]()
+			{
+				if (currAsset != nullptr)
+				{
+					for (auto group : *currAsset) //yep, one day it may fall
+						for (auto part : *group) //yep, one day it may fall
+							for (auto& node : part->getNode()) //yep, one day it may fall
+								node.updateRadius(nodeSize); //yep, one day it may fall
+				}
+			});
+
+		view.setSize(prev);
+		viewUpdated();
+	}
+}
+
 void CAE::Application::magicSelection()
 {
 	ImGui::BeginChild("Magic Selection Settings");
@@ -1114,6 +1144,14 @@ void CAE::Application::start()
 			toolsWindowFocused = ImGui::IsAnyWindowFocused();
 			ImGui::End();
 		}
+
+#ifdef DEBUG
+		ImGui::Begin("Debug", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Text("Manager x: %f, y: %f", eManager.curr_mpos_f.x, eManager.curr_mpos_f.y);
+		ImGui::Text("PrevManager x: %f, y: %f", eManager.prev_mpos_f.x, eManager.prev_mpos_f.y);
+		ImGui::End();
+#endif // DEBUG
+
 		update();
 		draw();
 		auto timePoint2(chrono::high_resolution_clock::now());
