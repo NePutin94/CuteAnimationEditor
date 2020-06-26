@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <future>
 #include <filesystem>
+//#define DEBUG
 namespace fs = std::filesystem;
 
 bool operator<(sf::Vector2i f, sf::Vector2i s)
@@ -23,12 +24,6 @@ sf::Rect<T> round(sf::Rect<T> value)
 
 void CAE::Application::handleEvent(sf::Event& event)
 {
-
-	/*MyEvent = {Event.type, Event.key}
-	handler.push(MyEvent, action())
-
-	handler.update(sf::event)*/
-
 	while (window->pollEvent(event))
 	{
 		if (event.type == sf::Event::Closed)
@@ -38,49 +33,10 @@ void CAE::Application::handleEvent(sf::Event& event)
 		}
 
 		eManager.updateEvent(event);
-
-		//if (event.type == sf::Event::MouseWheelScrolled && !toolsWindowFocused)
-		//{
-		//	auto prev = view.getSize();
-
-		//	if (event.mouseWheelScroll.delta < 0)
-		//	{
-		//		prev.x *= scaleFactor;
-		//		prev.y *= scaleFactor;
-		//		nodeSize += 0.3;
-		//		scaleSign = 1;
-		//	}
-		//	else
-		//	{
-		//		prev.x /= scaleFactor;
-		//		prev.y /= scaleFactor;
-		//		nodeSize -= 0.3;
-		//		scaleSign = -1;
-		//	}
-
-		//	if (asyncNodeScale.joinable())
-		//		asyncNodeScale.join();
-
-		//	asyncNodeScale = std::thread(
-		//		[this]()
-		//		{
-		//			if (currAsset != nullptr)
-		//			{
-		//				for (auto group : *currAsset) //yep, one day it may fall
-		//					for (auto part : *group) //yep, one day it may fall
-		//						for (auto& node : part->getNode()) //yep, one day it may fall
-		//							node.updateRadius(nodeSize); //yep, one day it may fall
-		//			}
-		//		});
-
-		//	view.setSize(prev);
-		//	viewUpdated();
-		//}
 		ImGui::SFML::ProcessEvent(event);
 	}
 	eManager.updateMousePosition(*window, view); //it must be performed before all updates for the current frame
 	eManager.updateInput();
-	//mPrevPose = window->mapPixelToCoords(sf::Mouse::getPosition(), view);
 }
 
 void CAE::Application::draw()
@@ -132,10 +88,6 @@ void CAE::Application::update()
 
 void CAE::Application::editorUpdate()
 {
-	//note: 
-	m_c_prevPos = m_c_pos;
-	m_c_pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
-	m_p_pos = sf::Mouse::getPosition(*window);
 	for (auto group : *currAsset)
 	{
 		if (group->isVisible())
@@ -145,45 +97,46 @@ void CAE::Application::editorUpdate()
 				////////////////////////////////////MOVING(FLOAT OFFSET)//////////////////////////////////////////
 				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
 				{
-					if (auto rect = elem->getRect(); elem->getRect().contains(m_c_pos) && ((selectedPart != nullptr) ? selectedPart == elem : true))
+					if (auto rect = elem->getRect(); elem->getRect().contains(eManager.currMousePos()) && ((selectedPart != nullptr) ? selectedPart == elem : true))
 					{
-						if (m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
+						selectedPart = elem;
+						selectedGroup = group;
+						if (useFloat)
 						{
-							if (useFloat)
-							{
-								auto delta = m_c_pos - m_c_prevPos;
-								rect.left += delta.x;
-								rect.top += delta.y;
-								elem->setRect(rect);
-							}
-							else
-							{
-								auto delta = m_p_pos - m_p_prevPos;
-								int factor = 20;
-								if (abs(delta.x) > factor || abs(delta.y) > factor)
-								{
-									if (abs(delta.x) > factor)
-										rect.left = round(rect.left) + delta.x % factor;
-									if (abs(delta.y) > factor)
-										rect.top = round(rect.top) + delta.y % factor;
-									m_p_prevPos = m_p_pos;
-								}
-								elem->setRect(rect);
-							}
-							selectedPart = elem;
-							selectedGroup = group;
-							selectedPart->changeColor(sf::Color::Green);
-							//lasSelectedPart may no longer be in the array
-							//But resource will not be deleted, in this case we will just change the color 
-							//for the essentially 'dead' object(which is still valid)
-							//it will be released when the lastSelected pointer changes to selectetPart
-							//If it was not deleted, we will still just change the color
-							if (lastSelected != nullptr && lastSelected != selectedPart)
-							{
-								lastSelected->changeColor(sf::Color::Red);
-								//selectedGroup.reset();
-							}
+							auto delta = eManager.worldMouseDelta();
+							rect.left -= delta.x;
+							rect.top -= delta.y;
+							elem->setRect(rect);
 						}
+						else
+						{
+							static sf::Vector2f delta2;
+							delta2 += eManager.worldMouseDelta();
+							auto delta = -(sf::Vector2i)delta2;
+							int factor = 1;
+							if (abs(delta.x) > factor || abs(delta.y) > factor)
+							{
+								if (abs(delta.x) > factor)
+									rect.left = round(rect.left) + delta.x;
+								if (abs(delta.y) > factor)
+									rect.top = round(rect.top) + delta.y;
+								delta2 = { 0,0 };
+							}
+							elem->setRect(rect);
+						}
+
+						selectedPart->changeColor(sf::Color::Green);
+						//lasSelectedPart may no longer be in the array
+						//But resource will not be deleted, in this case we will just change the color 
+						//for the essentially 'dead' object(which is still valid)
+						//it will be released when the lastSelected pointer changes to selectetPart
+						//If it was not deleted, we will still just change the color
+						if (lastSelected != nullptr && lastSelected != selectedPart)
+						{
+							lastSelected->changeColor(sf::Color::Red);
+							//selectedGroup.reset();
+						}
+						lastSelected = selectedPart;
 					}
 				}
 				else
@@ -191,7 +144,6 @@ void CAE::Application::editorUpdate()
 					if (selectedPart != nullptr)
 						lastSelected = selectedPart;
 					selectedPart.reset();
-					m_p_prevPos = m_p_pos;
 				}
 
 				////////////////////////////////////SCALE//////////////////////////////////////////
@@ -199,49 +151,47 @@ void CAE::Application::editorUpdate()
 				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
 				{
 					for (auto& p : elem->getNode())
-						if ((p.getGlobalBounds().contains(m_c_pos) && !pointSelected) || (pointSelected && selectedPoint == p.side && &p == selectedNode))
+						if ((p.getGlobalBounds().contains(eManager.currMousePos()) /*&& !pointSelected*/) || (/*pointSelected &&*/ selectedPoint == p.side && &p == selectedNode))
 						{
-							pointSelected = true;
+							//pointSelected = true;
 							selectedPoint = p.side;
 							selectedNode = &p;
-							if (auto rect = elem->getRect(); m_c_prevPos.x != 0 && m_c_prevPos.y != 0)
+							auto rect = elem->getRect();
+							sf::Vector2f value = { 0,0 };
+							if (!useFloat)
 							{
-								sf::Vector2f value = { 0,0 };
-								if (!useFloat)
+
+								static sf::Vector2f delta2;
+								delta2 += eManager.worldMouseDelta();
+								sf::Vector2i delta = -(sf::Vector2i)delta2;
+								int factor = 0.2;
+								if (abs(delta.x) > factor || abs(delta.y) > factor)
 								{
-									rect = round(rect);
-									sf::Vector2i delta = m_p_pos - m_p_prevPos2;
-									int factor = 20;
-									if (abs(delta.x) > factor || abs(delta.y) > factor)
-									{
-										value.x += delta.x % factor;
-										value.y += delta.y % factor;
-										m_p_prevPos2 = m_p_pos;
-									}
+									value.x += ceil(delta.x);
+									value.y += ceil(delta.y);
+									delta2 = { 0,0 };
 								}
-								else
-									value = m_c_pos - m_c_prevPos;
-								switch (p.side)
-								{
-								case 0:
-									elem->setRect(sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height + value.y * -1));
-									break;
-								case 1:
-									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
-									break;
-								case 2:
-									elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
-									break;
-								case 3:
-									elem->setRect(sf::FloatRect(rect.left + value.x, rect.top, rect.width + value.x * -1, rect.height));
-									break;
-								}
+								rect = round(rect);
+							}
+							else
+								value = -eManager.worldMouseDelta();
+
+							switch (p.side)
+							{
+							case 0:
+								elem->setRect(sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height - value.y));
+								break;
+							case 1:
+								elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
+								break;
+							case 2:
+								elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
+								break;
+							case 3:
+								elem->setRect(sf::FloatRect(rect.left + value.x, rect.top, rect.width - value.x, rect.height));
+								break;
 							}
 						}
-				}
-				else
-				{
-					m_p_prevPos2 = m_p_pos;
 				}
 			}
 		}
@@ -251,9 +201,45 @@ void CAE::Application::editorUpdate()
 void CAE::Application::loadAssets()
 {
 	ImGui::BeginChild("Load assets");
-	ImGui::InputText("Texture path", buff, IM_ARRAYSIZE(buff));
-	if (ImGui::Button("Load"))
-		loadAsset(buff);
+	ImGui::Spacing();
+	ImGui::Text("Available assets: ");
+	constexpr std::string_view default_path = "./assets/";
+	if (fs::exists(default_path))
+	{
+		for (auto& p : fs::directory_iterator(default_path))
+		{
+			auto name = p.path().filename().string();
+			if (p.path().extension() == ".json")
+				if (ImGui::Selectable(name.c_str()))
+				{
+					loadAsset(p.path().parent_path().string() + "/" + name, true);
+				}
+		}
+	}
+	else
+	{
+		Console::AppLog::addLog("directory .\"assets\" not exist", Console::error);
+	}
+	ImGui::Spacing();
+	ImGui::Separator();
+	ImGui::Spacing();
+	ImGui::Text("Load from other path: ");
+	if (ImGui::Button("Load From"))
+	{
+		char filename[MAX_PATH];
+		OPENFILENAME ofn;
+		ZeroMemory(&filename, sizeof(filename));
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		ofn.hwndOwner = NULL;
+		ofn.lpstrFilter = ("*json");
+		ofn.lpstrFile = filename;
+		ofn.nMaxFile = MAX_PATH;
+		ofn.lpstrTitle = ("Select a File");
+		ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
+		if (GetOpenFileName(&ofn))
+			loadAsset(filename, true);
+	}
 	ImGui::EndChild();
 }
 
@@ -527,43 +513,6 @@ void CAE::Application::editorDragDropLogic()
 		ImGui::PushID(group_id);
 		if (ImGui::TreeNode(group->getName().c_str()))
 		{
-			if (ImGui::Button("Get Magic Selection Rect"))
-			{
-				/*magicTool.t.clear();
-				auto size = currAsset->getLocalBounds();
-				magicTool.t.create(size.width, size.height);
-				sf::RectangleShape s;
-				s.setFillColor(sf::Color::Red);
-				for (auto& r : magicTool.boundRect)
-				{
-					s.setPosition(sf::Vector2f{ (float)r.x ,(float)r.y });
-					s.setSize(sf::Vector2f{ (float)r.width,(float)r.height });
-					magicTool.t.draw(s);
-					magicTool.t.display();
-				}*/
-				/*sf::IntRect deltaOffset = magicTool.offset;
-				switch (magicTool.mode)
-				{
-				case 0:
-
-					break;
-				case 1:
-					deltaOffset = { 1,1 ,-2,-2 };
-					break;
-				default:
-					break;
-				}*/
-
-				for (auto& r : magicTool.makeBounds())
-				{
-					/*	sf::FloatRect rect;
-						rect.left = r.x + deltaOffset.left;
-						rect.top = r.y + deltaOffset.top;
-						rect.width = r.width + deltaOffset.width;
-						rect.height = r.height + deltaOffset.height;*/
-					group->getParts().emplace_back(std::make_shared<Part>(r, ++global_id));
-				}
-			}
 			//////////////////Drag&Drop group(State: TreeNode open)//////////////////
 			if (ImGui::BeginDragDropTarget())
 			{
@@ -588,6 +537,11 @@ void CAE::Application::editorDragDropLogic()
 				ImGui::EndDragDropTarget();
 			}
 			//////////////////END//////////////////
+			if (ImGui::Button("Get Magic Selection Rect"))
+			{
+				for (auto& r : magicTool.makeBounds())
+					group->getParts().emplace_back(std::make_shared<Part>(r, ++global_id));
+			}
 
 			bool isVisible = group->isVisible();
 			ImGui::Checkbox("isVisible", &isVisible);
@@ -686,8 +640,10 @@ void CAE::Application::viewLoadedAssets()
 	else
 	{
 		ImGui::Separator();
-		for (auto a : animAssets)
+		for (auto iter = animAssets.begin(); iter != animAssets.end();)
 		{
+			auto a = *iter;
+			bool erase = false;
 			if (ImGui::TreeNode(a->getName().c_str()))
 			{
 				ImGui::Image(*a, { 200.f,200.f });
@@ -700,9 +656,19 @@ void CAE::Application::viewLoadedAssets()
 				ImGui::Text("step on the axis Width: %i Height: %i", WH.first, WH.second);
 				if (ImGui::Button("select as current"))
 					currAsset = a;
+				if (ImGui::Button("free"))
+					erase = true;
 				ImGui::TreePop();
 			}
 			ImGui::Separator();
+			if (erase)
+			{
+				if (currAsset == *iter)
+					currAsset.reset();
+				iter = animAssets.erase(iter);
+			}
+			else
+				++iter;
 		}
 	}
 	ImGui::EndChild();
@@ -714,11 +680,22 @@ void CAE::Application::saveAsset()
 	ImGui::Text("Save current asset");
 	if (currAsset != nullptr)
 	{
-		ImGui::InputText("File Path", buff, IM_ARRAYSIZE(buff));
-		if (ImGui::Button("Save"))
+		//ImGui::InputText("File Path", buff, IM_ARRAYSIZE(buff));
+		if (ImGui::Button("Save File as"))
 		{
-			currAsset->saveAsset(buff);
-			clearBuffers();
+			char filename[MAX_PATH];
+
+			OPENFILENAME ofn;
+			ZeroMemory(&filename, sizeof(filename));
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(ofn);
+			ofn.hwndOwner = NULL;
+			ofn.lpstrFilter = (".json");
+			ofn.lpstrFile = filename;
+			ofn.nMaxFile = MAX_PATH;
+			if (GetSaveFileName(&ofn))
+				currAsset->saveAsset(std::string(filename) + ".json");
+			//clearBuffers();
 		}
 	}
 	else
@@ -780,7 +757,6 @@ void CAE::Application::drawUI()
 			ImGui::SameLine();
 			if (ImGui::Button("Cancel", ImVec2(140, 0))) { window->close(); }
 			ImGui::EndPopup();
-
 		}
 		ImGui::EndChild();
 		break;
@@ -864,11 +840,11 @@ void CAE::Application::saveState()
 
 void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 {
-	if (!path.empty() && fs::exists(path))
+	if (!path.empty())
 	{
 		auto task = [this, setAsCurr](std::string copyBuffer)
 		{
-			auto ptr = new CAE::AnimationAsset{ copyBuffer };
+			auto ptr = std::make_shared<CAE::AnimationAsset>(copyBuffer);
 			if (ptr->loadFromFile())
 			{
 				auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
@@ -878,17 +854,19 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 				if (it != animAssets.end())
 				{
 					Console::AppLog::addLog("Assets loaded arleady", Console::message);
-					delete ptr;
+					//delete ptr;
 				}
 				else
-					animAssets.push_back(ptr);
+					animAssets.emplace_back(ptr);
 				if (setAsCurr)
+				{
 					currAsset = *animAssets.begin();
-				magicTool.setImage(*currAsset->getTexture());
-				magicTool.makeTransformImage();
+					magicTool.setImage(*currAsset->getTexture());
+					magicTool.makeTransformImage();
+				}
 			}
-			else
-				delete ptr;
+			//else
+			//	delete ptr;
 		};
 		Console::AppLog::addLog("Loading asset from: " + path, Console::message);
 		std::thread(task, path).detach();
@@ -1149,6 +1127,7 @@ void CAE::Application::start()
 		ImGui::Begin("Debug", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Manager x: %f, y: %f", eManager.curr_mpos_f.x, eManager.curr_mpos_f.y);
 		ImGui::Text("PrevManager x: %f, y: %f", eManager.prev_mpos_f.x, eManager.prev_mpos_f.y);
+		ImGui::Text("delta x: %f", eManager.worldMouseDelta());
 		ImGui::End();
 #endif // DEBUG
 

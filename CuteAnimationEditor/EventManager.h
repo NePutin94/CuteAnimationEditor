@@ -41,7 +41,7 @@ namespace CAE
 
 		bool operator==(const MouseEvent& other) const { return key == other.key && type == other.type; }
 		bool operator<(const MouseEvent& o)  const {
-			return type < o.type || (type == o.type && key < o.key);
+			return (type < o.type || (type == o.type && key < o.key));
 		}
 		static MouseEvent ButtonPressed(sf::Mouse::Button b)
 		{
@@ -126,33 +126,50 @@ namespace CAE
 
 		void updateEvent(sf::Event& e)
 		{
-			if (e.type == sf::Event::KeyPressed || e.type == sf::Event::KeyReleased)
+			switch (e.type)
+			{
+			case sf::Event::KeyPressed:
+			case sf::Event::KeyReleased:
 			{
 				auto range = KeyboardEvents.equal_range(KBoardEvent{ e.type, e.key.code });
 				for (auto it = range.first; it != range.second; ++it)
 					it->second(e);
 			}
-			else if (e.type == sf::Event::MouseButtonPressed || e.type == sf::Event::MouseButtonReleased)
+			break;
+			case sf::Event::MouseButtonPressed:
+			case sf::Event::MouseButtonReleased:
 			{
 				auto range = MouseEvents.equal_range(MouseEvent{ e.type, e.mouseButton.button });
 				for (auto it = range.first; it != range.second; ++it)
 					it->second(e);
 			}
-			else if (e.type == sf::Event::MouseWheelScrolled)
+			break;
+			case sf::Event::MouseWheelScrolled:
 			{
-				auto range = MouseEvents.equal_range(MouseEvent{ e.type });
-				for (auto it = range.first; it != range.second; ++it)
-					it->second(e);
+				//auto range = MouseEvents.equal_range(MouseEvent{ e.type });
+				for (auto it = MouseEvents.begin(); it != MouseEvents.end(); ++it)
+				{
+					if(it->first.type == e.type)
+						it->second(e);
+				}
+					/*for (auto it = range.first; it != range.second; ++it)
+					it->second(e);*/
+			}
+			break;
 			}
 		}
 		void updateMousePosition(sf::RenderWindow& w, sf::View& v)
 		{
 			prev_mpos_f = curr_mpos_f;
-			curr_mpos_f = w.mapPixelToCoords(sf::Mouse::getPosition(), v);
+			curr_mpos_f = w.mapPixelToCoords(sf::Mouse::getPosition(w), v);
 		}
 		sf::Vector2f worldMouseDelta()
 		{
 			return prev_mpos_f - curr_mpos_f;
+		}
+		sf::Vector2f currMousePos()
+		{
+			return curr_mpos_f;
 		}
 	};
 };

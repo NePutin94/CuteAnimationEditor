@@ -16,9 +16,9 @@ namespace CAE
 	class Application
 	{
 	private:
-		AnimationAsset* currAsset;
-		std::vector<AnimationAsset*> animAssets;
-		std::string lastLog;
+		std::shared_ptr<AnimationAsset> currAsset;
+		std::list<std::shared_ptr<AnimationAsset>> animAssets;
+		//std::string lastLog;
 		std::vector<std::shared_ptr<Part>> editorSubArray;
 		enum class states
 		{
@@ -46,12 +46,6 @@ namespace CAE
 		//sf::Vector2f mPrevPose; //used only in handleEvent
 		//sf::Vector2f mCurrPose;
 		TAP          animPlayer;
-		//--------------------------used only in editorUpdate()--------------------------//
-		sf::Vector2f m_c_pos;
-		sf::Vector2i m_p_pos;
-		sf::Vector2f m_c_prevPos;
-		sf::Vector2i m_p_prevPos;
-		sf::Vector2i m_p_prevPos2;
 		ScaleNode* selectedNode;
 		std::shared_ptr<Part> selectedPart;
 		std::shared_ptr<Part> lastSelected;
@@ -89,6 +83,7 @@ namespace CAE
 		void deletSelectedPart_e(sf::Event&);
 		void viewScale_e(sf::Event& event);
 
+
 		void magicSelection();
 		void showLog(std::string_view txt);
 		void viewUpdated();
@@ -104,8 +99,6 @@ namespace CAE
 		void saveAsset();
 		void drawMenuBar();
 		void drawUI();
-
-
 
 		void addEventsHandler()
 		{
@@ -124,7 +117,6 @@ namespace CAE
 																	//you need to update the mouse coordinates again, already in the new view
 						//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 					} });
-
 			eManager.addEvent(MouseEvent::WheelScrolled(), &Application::viewScale_e, this);
 			eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&) { pointSelected = false; });
 		}
@@ -143,7 +135,7 @@ namespace CAE
 			view.setSize(w.getDefaultView().getSize());
 			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
 		}
-		~Application() { for (auto& it : animAssets) delete it; if (asyncNodeScale.joinable()) asyncNodeScale.join(); }
+		~Application() { if (asyncNodeScale.joinable()) asyncNodeScale.join(); }
 
 		void start();
 	};

@@ -7,25 +7,6 @@
 using json = nlohmann::json;
 namespace CAE
 {
-	/*enum PriorityOfDrawing
-	{
-		Lowest = 0,
-		Low,
-		Medium,
-		High,
-		Highest
-	};
-
-	constexpr std::string_view PriorityOfDrawing_s[] =
-	{
-		 "Lowest",
-		 "Low",
-		 "Medium",
-		 "High",
-		 "Highest"
-	};*/
-
-
 	class ScaleNode : public sf::CircleShape
 	{
 	public:
@@ -59,11 +40,11 @@ namespace CAE
 		explicit Part(sf::FloatRect _rect);
 		explicit Part(sf::FloatRect _rect, int id);
 		~Part() = default;
+
 		auto& getNode() { return node; }
 		auto& getVertex() { return quad; }
 		void changeColor(sf::Color c);
 		auto getRect() { return box; }
-
 		auto getId() { return id; }
 		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect);
@@ -80,8 +61,9 @@ namespace CAE
 		std::string name;
 		std::vector<std::shared_ptr<Part>> parts;
 	public:
-		Group() = default;	
+		Group() = default;
 		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f) {}
+		Group(Group&& g) = default;
 		~Group() = default;
 
 		void setSpeed(float sp) { animSpeed = sp; }
