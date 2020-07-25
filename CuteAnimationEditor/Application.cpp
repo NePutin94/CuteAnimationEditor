@@ -22,6 +22,12 @@ sf::Rect<T> round(sf::Rect<T> value)
 	return sf::Rect <T>{round(value.left), round(value.top), round(value.width), round(value.height)};
 }
 
+template<class T>
+sf::Vector2<T> abs(sf::Vector2<T> value)
+{
+	return sf::Vector2<T>{std::abs(value.x), std::abs(value.y)};
+}
+
 void CAE::Application::handleEvent(sf::Event& event)
 {
 	while (window->pollEvent(event))
@@ -43,6 +49,7 @@ void CAE::Application::draw()
 {
 	window->setView(view);
 	window->clear();
+	window->draw(shape);
 	if (currAsset != nullptr)
 	{
 		window->draw(*currAsset);
@@ -61,6 +68,7 @@ void CAE::Application::draw()
 			//window->draw(sf::Sprite(magicTool.t.getTexture()));
 		}
 	}
+
 	Console::AppLog::Draw("LogConsole", &LogConsole);
 
 	if (attTimer.getElapsedTime() < sf::seconds(2) && newMessage)
@@ -83,7 +91,10 @@ void CAE::Application::update()
 	}
 
 	if (currAsset != nullptr && creatorMode)
+	{
 		editorUpdate();
+
+	}
 }
 
 void CAE::Application::editorUpdate()
@@ -217,9 +228,8 @@ void CAE::Application::loadAssets()
 		}
 	}
 	else
-	{
 		Console::AppLog::addLog("directory .\"assets\" not exist", Console::error);
-	}
+
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
@@ -421,6 +431,30 @@ void CAE::Application::editor()
 	ImGui::EndChild();
 }
 
+void CAE::Application::exit()
+{
+	ImGui::BeginChild("Note");
+	ImGui::OpenPopup("Save?");
+	if (ImGui::BeginPopupModal("Save?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		ImGui::Text("SAVE SESSION?");
+		ImGui::Separator();
+
+		if (ImGui::Button("Yes", ImVec2(140, 0)))
+		{
+			saveState();
+			if (currAsset != nullptr)
+				currAsset->saveAsset();
+			window->close();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(140, 0))) { window->close(); }
+		ImGui::EndPopup();
+	}
+	ImGui::EndChild();
+}
+
 void CAE::Application::editorDragDropLogic()
 {
 	static int global_id = 0; //just a local 'name' for part, value used only in make_text 
@@ -463,14 +497,10 @@ void CAE::Application::editorDragDropLogic()
 	ImGui::SameLine();
 	ImGui::Image(addSprite_ico, sf::Vector2f{ 32,32 });
 	if (ImGui::IsWindowHovered() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
-	{
 		if (ImGui::GetIO().MouseReleased[0])
-		{
 			editorSubArray.emplace_back(std::make_shared<Part>(sf::FloatRect(0, 0, 20, 20), ++global_id));
-		}
-	}
 	//////////////////END//////////////////
-	if (ImGui::TreeNode("Local array"))
+	if (ImGui::TreeNode("Editor storage"))
 	{
 		int sub_part_id = 0;
 		for (auto iter = editorSubArray.begin(); iter != editorSubArray.end(); ++iter)
@@ -536,11 +566,54 @@ void CAE::Application::editorDragDropLogic()
 				}
 				ImGui::EndDragDropTarget();
 			}
+
 			//////////////////END//////////////////
+			static int prsId = 0;
 			if (ImGui::Button("Get Magic Selection Rect"))
 			{
-				for (auto& r : magicTool.makeBounds())
-					group->getParts().emplace_back(std::make_shared<Part>(r, ++global_id));
+				selectArea = true;
+				prsId = group_id;
+			}
+			else
+			{
+				if (selectArea && prsId == group_id)
+				{
+					static sf::IntRect rect;
+					static bool once = false;
+					if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
+					{
+						if (!once)
+						{
+							once = true;
+							auto pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+							rect.left = pos.x;
+							rect.top = pos.y;
+						}
+						else
+						{
+							sf::Vector2f p = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
+							auto delta = p - shape.getPosition();
+							rect.width = delta.x;
+							rect.height = delta.y;
+						}
+						shape.setPosition(sf::Vector2f( rect.left,rect.top ));
+						shape.setSize(sf::Vector2f(rect.width,rect.height ));
+					}
+					else if (once)
+					{
+						std::string s = std::to_string(rect.width) + " _ " + std::to_string(rect.height) + " | " + std::to_string(rect.left) + " _ " + std::to_string(rect.top);
+						Console::AppLog::addLog(s, Console::info);
+						magicTool.cropSrc(rect, true);
+						for (auto& r : magicTool.makeBounds())
+							group->getParts().emplace_back(std::make_shared<Part>(r, ++global_id));
+						Console::AppLog::addLog(std::to_string(group_id) + group->getName(), Console::info);
+						selectArea = false;
+						once = false;
+						rect = {};
+						shape.setPosition(sf::Vector2f(0,0));
+						shape.setSize(sf::Vector2f(0,0));
+					}
+				}
 			}
 
 			bool isVisible = group->isVisible();
@@ -741,24 +814,7 @@ void CAE::Application::drawUI()
 	switch (state)
 	{
 	case CAE::Application::states::Exit:
-		ImGui::BeginChild("Note");
-		ImGui::OpenPopup("Save?");
-		if (ImGui::BeginPopupModal("Save?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
-		{
-			ImGui::Text("SAVE SESSION?");
-			ImGui::Separator();
-
-			if (ImGui::Button("Yes", ImVec2(140, 0)))
-			{
-				saveState();
-				window->close();
-			}
-			ImGui::SetItemDefaultFocus();
-			ImGui::SameLine();
-			if (ImGui::Button("Cancel", ImVec2(140, 0))) { window->close(); }
-			ImGui::EndPopup();
-		}
-		ImGui::EndChild();
+		exit();
 		break;
 	case CAE::Application::states::Null:
 		mainWindow();
@@ -789,6 +845,51 @@ void CAE::Application::drawUI()
 	}
 }
 
+void CAE::Application::addEventsHandler()
+{
+	eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
+	eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
+	eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Delete), &Application::deletSelectedPart_e, this);
+	eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Tilde), [this](sf::Event&) {LogConsole = !LogConsole; });
+
+	eManager.addInput({ sf::Keyboard::Space, sf::Mouse::Button::Left },
+		[this]() {
+			if (useMouse)
+			{
+				view.move(eManager.worldMouseDelta());
+				eManager.updateMousePosition(*window, view);//because the view position has changed, the mouse position (even if it did not move in the next frame) 
+															//will be different on the next frame. to avoid re-shifting the view, 
+															//you need to update the mouse coordinates again, already in the new view
+				//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+			} });
+	//eManager.addEvent(MouseEvent::WheelScrolled(), [this](sf::Event&) {std::cout << "1scrolled \n"; });
+	eManager.addEvent(MouseEvent::WheelScrolled(), &Application::viewScale_e, this);
+	//eManager.addEvent(MouseEvent::WheelScrolled(), [this](sf::Event&) {std::cout << "2scrolled \n"; });
+	//eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event&) { std::cout << "11 \n"; });
+	//eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Right), [this](sf::Event&) { std::cout << "12 \n"; });
+	eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&) { pointSelected = false; });
+}
+
+
+
+CAE::Application::Application(sf::RenderWindow& w)
+	: window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
+{
+	deleteTexture_ico.loadFromFile("attention.png");
+	deleteTexture_ico.setSmooth(true);
+	deleteSprite_ico.setTexture(deleteTexture_ico);
+	//deleteSprite_ico.setScale({ 0.05f,0.05f });
+	addTexture_ico.loadFromFile("addico.png");
+	addTexture_ico.setSmooth(true);
+	addSprite_ico.setTexture(addTexture_ico);
+	//addSprite_ico.setScale({ 0.05f,0.05f });
+	addEventsHandler();
+	view.setSize(w.getDefaultView().getSize());
+	/*shape.setFillColor(sf::Color::Transparent);
+	shape.setOutlineColor(sf::Color::Red);*/
+	//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+}
+
 void CAE::Application::clearBuffers()
 {
 	strcpy_s(buff, "");
@@ -804,9 +905,11 @@ void CAE::Application::loadState()
 		open >> j;
 		try
 		{
-			std::string p = j.at("currentAsset").get<std::string>();
-			useMouse = j.at("useMouse").get<bool>();
-			creatorMode = j.at("creatorMode").get<bool>();
+			auto& appSettings = j.at("Application Settings");
+			std::string p = appSettings.at("currentAsset").get<std::string>();
+			useMouse = appSettings.at("useMouse").get<bool>();
+			creatorMode = appSettings.at("creatorMode").get<bool>();
+			magicTool.load4Json(j.at("MagicTool Settings"));
 			if (p != "Null")
 				loadAsset(p, true);
 		}
@@ -830,9 +933,11 @@ void CAE::Application::saveState()
 	if (currAsset != nullptr)
 	{
 		json j;
-		j["currentAsset"] = currAsset->assetPath;
-		j["useMouse"] = useMouse;
-		j["creatorMode"] = creatorMode;
+		auto& applicationMain = j["Application Settings"];
+		applicationMain["currentAsset"] = currAsset->assetPath;
+		applicationMain["useMouse"] = useMouse;
+		applicationMain["creatorMode"] = creatorMode;
+		j["MagicTool Settings"] = magicTool.save2Json();
 		open << std::setw(4) << j;
 	}
 	open.close();
@@ -957,6 +1062,11 @@ void CAE::Application::magicSelection()
 		ImGui::SliderInt("Rect w", &magicTool.kernel_rect.x, 0, 255);
 		ImGui::SliderInt("Rect g", &magicTool.kernel_rect.y, 0, 255);
 	}
+	ImGui::Text("offset");
+	ImGui::InputInt("left",&magicTool.offset.left);
+	ImGui::InputInt("top", &magicTool.offset.top);
+	ImGui::InputInt("rigt", &magicTool.offset.width);
+	ImGui::InputInt("bottom", &magicTool.offset.height);
 	//}
 
 	if (ImGui::Button("Processed Image"))
@@ -1062,7 +1172,7 @@ void CAE::Application::magicSelection()
 	static sf::Texture texture;
 	static sf::Sprite sprite;
 	texture.loadFromImage(magicTool.getTransformPreview());
-	sprite.setTexture(texture);
+	sprite.setTexture(texture, true);
 	ImGui::Image(sprite);
 	ImGui::EndChild();
 }

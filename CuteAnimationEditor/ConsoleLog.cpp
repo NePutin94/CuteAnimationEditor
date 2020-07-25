@@ -180,10 +180,12 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
 		{
 			for (auto item : Buffer)
 			{
-				if (item_current == "error")
+				ImGui::TextColored(item.color, logType_s[item.type].data());
+			
+			/*	if (item_current == "error")
 				{
 					if (item.type == logType::error)
-						ImGui::TextColored(item.color, item.text.c_str());
+						
 				}
 				else if (item_current == "info")
 				{
@@ -209,7 +211,7 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
 				{
 					if (item.type == logType::message)
 						ImGui::TextColored(item.color, item.text.c_str());
-				}
+				}*/
 			}
 		}
 		else

@@ -146,14 +146,9 @@ namespace CAE
 			break;
 			case sf::Event::MouseWheelScrolled:
 			{
-				//auto range = MouseEvents.equal_range(MouseEvent{ e.type });
-				for (auto it = MouseEvents.begin(); it != MouseEvents.end(); ++it)
-				{
-					if(it->first.type == e.type)
-						it->second(e);
-				}
-					/*for (auto it = range.first; it != range.second; ++it)
-					it->second(e);*/
+				auto range = MouseEvents.equal_range(MouseEvent{ e.type });
+				for (auto it = range.first; it != range.second; ++it)
+					it->second(e);
 			}
 			break;
 			}

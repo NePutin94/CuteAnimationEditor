@@ -19,7 +19,7 @@ bool CAE::AnimationAsset::loadFromFile()
 				groups.back()->load(group);
 			}
 		}
-		catch (json::exception & e)
+		catch (json::exception& e)
 		{
 			std::string str = e.what();
 			Console::AppLog::addLog("Json throw exception, message: " + str, Console::error);
@@ -35,6 +35,8 @@ bool CAE::AnimationAsset::loadFromFile()
 
 bool CAE::AnimationAsset::saveAsset(std::string_view path)
 {
+	if (path.empty())
+		path = assetPath;
 	ofstream o(path.data());
 	json j;
 	auto& info = j["defaultInfo"];

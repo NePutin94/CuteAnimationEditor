@@ -13,15 +13,15 @@ namespace CAE
 		std::vector<std::shared_ptr<Group>> groups;
 
 		bool loadFromFile();
-		bool saveAsset(std::string_view);
+		bool saveAsset(std::string_view = "");
 	public:
-		AnimationAsset(std::string_view _path);
+		explicit AnimationAsset(std::string_view _path);
 		~AnimationAsset() = default;
 		auto begin() { return groups.begin(); }
 		auto end() { return groups.end(); }
-		auto getName() const { return name; }
-		auto getPath() { return texturePath; }
-		std::pair<int, int> getWH() { return std::make_pair(texture.getSize().x, texture.getSize().y); }
+		std::string getName() const { return name; }
+		std::string getPath() const { return texturePath; }
+		auto getWH() { return std::make_pair(texture.getSize().x, texture.getSize().y); }
 
 		friend class Application;
 	};

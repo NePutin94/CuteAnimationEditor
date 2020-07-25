@@ -51,7 +51,7 @@ namespace CAE
 		std::shared_ptr<Part> lastSelected;
 		std::shared_ptr<Group> selectedGroup;
 		//--------------------------end--------------------------//
-
+		sf::RectangleShape shape;
 		MagicTool magicTool;
 		EventManager eManager;
 
@@ -83,7 +83,6 @@ namespace CAE
 		void deletSelectedPart_e(sf::Event&);
 		void viewScale_e(sf::Event& event);
 
-
 		void magicSelection();
 		void showLog(std::string_view txt);
 		void viewUpdated();
@@ -93,48 +92,18 @@ namespace CAE
 		void viewSettings();
 		void createAssets();
 		void editor();
+		void exit();
 		void editorDragDropLogic();
 		void mainWindow();
 		void viewLoadedAssets();
 		void saveAsset();
 		void drawMenuBar();
 		void drawUI();
-
-		void addEventsHandler()
-		{
-			eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
-			eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
-			eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Delete), &Application::deletSelectedPart_e, this);
-			eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Tilde), [this](sf::Event&) {LogConsole = !LogConsole; });
-
-			eManager.addInput({ sf::Keyboard::Space, sf::Mouse::Button::Left },
-				[this]() {
-					if (useMouse)
-					{
-						view.move(eManager.worldMouseDelta());
-						eManager.updateMousePosition(*window, view);//because the view position has changed, the mouse position (even if it did not move in the next frame) 
-																    //will be different on the next frame. to avoid re-shifting the view, 
-																	//you need to update the mouse coordinates again, already in the new view
-						//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-					} });
-			eManager.addEvent(MouseEvent::WheelScrolled(), &Application::viewScale_e, this);
-			eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&) { pointSelected = false; });
-		}
+		void addEventsHandler();
+		//sf::FloatRect selectArea();
+		bool selectArea;
 	public:
-		Application(sf::RenderWindow& w) : window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
-		{
-			deleteTexture_ico.loadFromFile("attention.png");
-			deleteTexture_ico.setSmooth(true);
-			deleteSprite_ico.setTexture(deleteTexture_ico);
-			//deleteSprite_ico.setScale({ 0.05f,0.05f });
-			addTexture_ico.loadFromFile("addico.png");
-			addTexture_ico.setSmooth(true);
-			addSprite_ico.setTexture(addTexture_ico);
-			//addSprite_ico.setScale({ 0.05f,0.05f });
-			addEventsHandler();
-			view.setSize(w.getDefaultView().getSize());
-			//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-		}
+		Application(sf::RenderWindow& w);
 		~Application() { if (asyncNodeScale.joinable()) asyncNodeScale.join(); }
 
 		void start();
