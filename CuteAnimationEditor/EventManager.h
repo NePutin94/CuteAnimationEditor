@@ -9,8 +9,8 @@ namespace CAE
 	class Application;
 	struct KBoardEvent
 	{
-		sf::Event::EventType type = sf::Event::Count;
-		sf::Keyboard::Key key = sf::Keyboard::KeyCount;
+		sf::Event::EventType type = (sf::Event::EventType)0;
+		sf::Keyboard::Key key = (sf::Keyboard::Key)0;
 		//KBoardEvent() : type(), key() {}
 
 		KBoardEvent(sf::Event::EventType type, sf::Keyboard::Key key) :type(type), key(key) {}
@@ -32,8 +32,8 @@ namespace CAE
 
 	struct MouseEvent
 	{
-		sf::Event::EventType type = sf::Event::Count;
-		sf::Mouse::Button    key = sf::Mouse::ButtonCount;
+		sf::Event::EventType type = (sf::Event::EventType)0;
+		sf::Mouse::Button    key = (sf::Mouse::Button)0;
 
 		MouseEvent(sf::Event::EventType type, sf::Mouse::Button b) : key(b), type(type) {}
 		MouseEvent(sf::Event::EventType type) : type(type) {}
@@ -75,12 +75,8 @@ namespace CAE
 		std::multimap<MultiEvent, std::function<void()>> MultiEvents;
 		typedef  void(Application::* AppFunc)(sf::Event&);
 		typedef  void(Application::* AppFuncInput)();
-
-
-		sf::Vector2i curr_mpos_i;
-		sf::Vector2i prev_mpos_i;
-
 	public:
+
 		EventManager() = default;
 
 		sf::Vector2f curr_mpos_f;
@@ -129,6 +125,12 @@ namespace CAE
 			switch (e.type)
 			{
 			case sf::Event::KeyPressed:
+			{
+				auto range = KeyboardEvents.equal_range(KBoardEvent{ e.type, e.key.code });
+				for (auto it = range.first; it != range.second; ++it)
+					it->second(e);
+			}
+			break;
 			case sf::Event::KeyReleased:
 			{
 				auto range = KeyboardEvents.equal_range(KBoardEvent{ e.type, e.key.code });
@@ -137,6 +139,12 @@ namespace CAE
 			}
 			break;
 			case sf::Event::MouseButtonPressed:
+			{
+				auto range = MouseEvents.equal_range(MouseEvent{ e.type, e.mouseButton.button });
+				for (auto it = range.first; it != range.second; ++it)
+					it->second(e);
+			}
+			break;
 			case sf::Event::MouseButtonReleased:
 			{
 				auto range = MouseEvents.equal_range(MouseEvent{ e.type, e.mouseButton.button });
@@ -151,17 +159,32 @@ namespace CAE
 					it->second(e);
 			}
 			break;
+			case sf::Event::MouseMoved:
+			{
+				auto range = MouseEvents.equal_range(MouseEvent{ e.type });
+				for (auto it = range.first; it != range.second; ++it)
+					it->second(e);
+			}
+			break;
 			}
 		}
+
 		void updateMousePosition(sf::RenderWindow& w, sf::View& v)
 		{
 			prev_mpos_f = curr_mpos_f;
 			curr_mpos_f = w.mapPixelToCoords(sf::Mouse::getPosition(w), v);
 		}
+
+		void updatecurr(sf::RenderWindow& w, sf::View& v)
+		{
+			curr_mpos_f = w.mapPixelToCoords(sf::Mouse::getPosition(w), v);
+		}
+
 		sf::Vector2f worldMouseDelta()
 		{
 			return prev_mpos_f - curr_mpos_f;
 		}
+
 		sf::Vector2f currMousePos()
 		{
 			return curr_mpos_f;

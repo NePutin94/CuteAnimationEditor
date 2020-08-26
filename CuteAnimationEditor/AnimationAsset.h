@@ -15,6 +15,7 @@ namespace CAE
 		bool loadFromFile();
 		bool saveAsset(std::string_view = "");
 	public:
+		using groupIter = std::vector<std::shared_ptr<Group>>::iterator;
 		explicit AnimationAsset(std::string_view _path);
 		~AnimationAsset() = default;
 		auto begin() { return groups.begin(); }

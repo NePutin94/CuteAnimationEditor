@@ -1,4 +1,5 @@
 #pragma once
+#include "Tool.h"
 #include <vector>
 #include <SFML/Graphics.hpp>
 #include <opencv2/imgproc/types_c.h>
@@ -9,6 +10,46 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <nlohmann/json.hpp>
 #include <algorithm>
+namespace CAE
+{
+	class _MagicTool : public Tool
+	{
+	private:
+		std::vector<cv::Rect> outputRect;
+		sf::Image workImage;
+		cv::Mat sfml2opencv(const sf::Image& img, bool toBGRA = false, bool fixZeroTransp = false);
+		bool gray; //you should always use grayscale btw
+		bool makeAllBlack;
+		bool useMorph;
+		int thresh;
+		int add;
+		int morph_iteration;
+		int mode;
+		sf::IntRect offset;
+		sf::Vector2i kernel_rect;
+		sf::IntRect cr;
+		cv::Mat source_image;
+		cv::Mat use_image;
+		cv::Mat transform_image;
+	public:
+		_MagicTool(EventManager& m, const sf::Texture& t, sf::RenderWindow& window, bool useFloatMove = false) : Tool(m, t, window) {}
+
+		void update(std::shared_ptr<AnimationAsset> data) override {}
+
+		//void handleEvenet(sf::Event& e) override {}
+
+		void draw() override {}
+
+		void makeTransformImage();
+		std::vector<sf::FloatRect> makeBounds();
+		//void makeBounds(std::vector<sf::FloatRect>& b);
+		auto getTransformPreview() { return workImage; }
+		nlohmann::json save2Json();
+		void load4Json(const nlohmann::json& j);
+		void cropSrc(sf::IntRect crop, bool rebuildSrc = false);
+		void setImage(const sf::Texture& t, sf::IntRect crop = {});
+	};
+}
 
 class MagicTool
 {

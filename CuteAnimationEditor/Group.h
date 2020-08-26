@@ -31,7 +31,7 @@ namespace CAE
 		sf::VertexArray quad;
 		std::array<ScaleNode, 4> node;
 		sf::Color color;
-		bool isSelected;
+		bool IsSelected;
 		int id; //just local value, is specified at runtime
 
 		void update();
@@ -46,6 +46,8 @@ namespace CAE
 		void changeColor(sf::Color c);
 		auto getRect() { return box; }
 		auto getId() { return id; }
+		bool setSelected(bool s) { return IsSelected = s; }
+		bool isSelected() { return IsSelected; }
 		void coordToInt() { box = sf::FloatRect(floor(box.left), floor(box.top), floor(box.width), floor(box.height)); update(); }
 		void setRect(sf::FloatRect rect);
 	};
@@ -55,6 +57,7 @@ namespace CAE
 	private:
 		bool isEnable;
 		bool isLooped;
+		bool IsSelected;
 		float animSpeed;
 		float scale;
 
@@ -62,14 +65,16 @@ namespace CAE
 		std::vector<std::shared_ptr<Part>> parts;
 	public:
 		Group() = default;
-		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f) {}
+		explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(0.5f), isLooped(false), scale(1.f), IsSelected(false){}
 		Group(Group&& g) = default;
 		~Group() = default;
 
 		void setSpeed(float sp) { animSpeed = sp; }
 		void setScale(float sc) { scale = sc; }
 		void setVisible(bool v) { isEnable = v; }
+		bool setSelected(bool s) { return IsSelected = s; }
 
+		bool isSelected() { return IsSelected; }
 		auto getName()   const { return name; }
 		auto getScale()  const { return scale; }
 		auto getSpeed()  const { return animSpeed; }
