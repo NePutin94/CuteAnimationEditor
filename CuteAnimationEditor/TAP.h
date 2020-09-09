@@ -5,6 +5,7 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 #include "AnimationAsset.h"
+#include <list>
 namespace CAE
 {
 	enum AnimationState { APlay, APause, AEnd };

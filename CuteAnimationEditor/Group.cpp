@@ -14,7 +14,7 @@ void CAE::Part::update()
 	node[3].setPosition({ x, y + h / 2 });
 }
 
-CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent)
+CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent), IsSelected(false)
 {
 	auto [x, y, w, h] = box;
 	node[0] = ScaleNode({ x + w / 2, y }, 0);
@@ -25,7 +25,7 @@ CAE::Part::Part(sf::FloatRect _rect) : box(_rect), /*prior(PriorityOfDrawing::Lo
 	changeColor(sf::Color::Red);
 }
 
-CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent)
+CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect), /*prior(PriorityOfDrawing::Low),*/ quad(sf::LinesStrip, 5), color(sf::Color::Transparent), IsSelected(false)
 {
 	auto [x, y, w, h] = box;
 	node[0] = ScaleNode({ x + w / 2, y }, 0);

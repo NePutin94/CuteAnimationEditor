@@ -1,9 +1,13 @@
 #include "Application.h"
+#include <imgui/include/imgui-SFML.h>
 #include <iomanip>
 #include <algorithm>
 #include <future>
 #include <filesystem>
 //#define DEBUG
+#if defined (__linux__)
+#define Linux
+#endif
 namespace fs = std::filesystem;
 
 bool operator<(sf::Vector2i f, sf::Vector2i s)
@@ -16,11 +20,11 @@ bool operator>(sf::Vector2i f, sf::Vector2i s)
 	return !(f < s);
 }
 
-template<class T>
-sf::Rect<T> round(sf::Rect<T> value)
-{
-	return sf::Rect <T>{round(value.left), round(value.top), round(value.width), round(value.height)};
-}
+//template<class T>
+//sf::Rect<T> round(sf::Rect<T> value)
+//{
+//	return sf::Rect <T>{round(value.left), round(value.top), round(value.width), round(value.height)};
+//}
 
 template<class T>
 sf::Vector2<T> abs(sf::Vector2<T> value)
@@ -30,6 +34,8 @@ sf::Vector2<T> abs(sf::Vector2<T> value)
 
 void CAE::Application::handleEvent(sf::Event& event)
 {
+	static bool moving = false;
+	static sf::Vector2f oldPos;
 	while (window->pollEvent(event))
 	{
 		if (event.type == sf::Event::Closed)
@@ -37,21 +43,24 @@ void CAE::Application::handleEvent(sf::Event& event)
 			state = states::Exit;
 			break;
 		}
-
-		eManager.updateEvent(event);
+		//eManager.updateEvent(event);
+		eventManagers.updateEvent(event, *window);
 		ImGui::SFML::ProcessEvent(event);
 	}
-	eManager.updateMousePosition(*window, view); //it must be performed before all updates for the current frame
-	eManager.updateInput();
+	eventManagers.updatecurr(*window, view); //it must be performed before all updates for the current frame
+	eventManagers.updateInput();
 }
 
 void CAE::Application::draw()
 {
+	sf::View unScale(view);
+	unScale.setSize(unscaleView);
 	window->setView(view);
 	window->clear();
 	window->draw(shape);
 	if (currAsset != nullptr)
 	{
+		//window->setView(view);
 		window->draw(*currAsset);
 		if (creatorMode)
 		{
@@ -61,12 +70,15 @@ void CAE::Application::draw()
 					for (auto part : *elem)
 					{
 						window->draw(part->getVertex());
+						//window->setView(unScale);
 						for (auto& node : part->getNode())
 							window->draw(node);
+						//window->setView(view);
 					}
 			}
 			//window->draw(sf::Sprite(magicTool.t.getTexture()));
 		}
+		tools_container.draw(*window);
 	}
 
 	Console::AppLog::Draw("LogConsole", &LogConsole);
@@ -91,122 +103,120 @@ void CAE::Application::update()
 	}
 
 	if (currAsset != nullptr && creatorMode)
-	{
-		editorUpdate();
-
-	}
+		tools_container.update();
+	//editorUpdate();
 }
 
 void CAE::Application::editorUpdate()
 {
-	for (auto group : *currAsset)
-	{
-		if (group->isVisible())
-		{
-			for (std::shared_ptr<Part> elem : *group)
-			{
-				////////////////////////////////////MOVING(FLOAT OFFSET)//////////////////////////////////////////
-				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
-				{
-					if (auto rect = elem->getRect(); elem->getRect().contains(eManager.currMousePos()) && ((selectedPart != nullptr) ? selectedPart == elem : true))
-					{
-						selectedPart = elem;
-						selectedGroup = group;
-						if (useFloat)
-						{
-							auto delta = eManager.worldMouseDelta();
-							rect.left -= delta.x;
-							rect.top -= delta.y;
-							elem->setRect(rect);
-						}
-						else
-						{
-							static sf::Vector2f delta2;
-							delta2 += eManager.worldMouseDelta();
-							auto delta = -(sf::Vector2i)delta2;
-							int factor = 1;
-							if (abs(delta.x) > factor || abs(delta.y) > factor)
-							{
-								if (abs(delta.x) > factor)
-									rect.left = round(rect.left) + delta.x;
-								if (abs(delta.y) > factor)
-									rect.top = round(rect.top) + delta.y;
-								delta2 = { 0,0 };
-							}
-							elem->setRect(rect);
-						}
+	//for (auto group : *currAsset)
+	//{
+	//	if (group->isVisible())
+	//	{
+	//		for (std::shared_ptr<Part> elem : *group)
+	//		{
+	//			////////////////////////////////////MOVING(FLOAT OFFSET)//////////////////////////////////////////
+	//			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::X))
+	//			{
+	//				if (auto rect = elem->getRect(); elem->getRect().contains(eManager.currMousePos()) && ((selectedPart != nullptr) ? selectedPart == elem : true))
+	//				{
+	//					selectedPart = elem;
+	//					selectedGroup = group;
+	//					if (useFloat)
+	//					{
+	//						auto delta = eManager.worldMouseDelta();
+	//						rect.left -= delta.x;
+	//						rect.top -= delta.y;
+	//						elem->setRect(rect);
+	//					}
+	//					else
+	//					{
+	//						static sf::Vector2f delta2;
+	//						delta2 += eManager.worldMouseDelta();
+	//						auto delta = -(sf::Vector2i)delta2;
+	//						int factor = 1;
+	//						if (abs(delta.x) > factor || abs(delta.y) > factor)
+	//						{
+	//							if (abs(delta.x) > factor)
+	//								rect.left = round(rect.left) + delta.x;
+	//							if (abs(delta.y) > factor)
+	//								rect.top = round(rect.top) + delta.y;
+	//							delta2 = { 0,0 };
+	//						}
+	//						elem->setRect(rect);
+	//					}
 
-						selectedPart->changeColor(sf::Color::Green);
-						//lasSelectedPart may no longer be in the array
-						//But resource will not be deleted, in this case we will just change the color 
-						//for the essentially 'dead' object(which is still valid)
-						//it will be released when the lastSelected pointer changes to selectetPart
-						//If it was not deleted, we will still just change the color
-						if (lastSelected != nullptr && lastSelected != selectedPart)
-						{
-							lastSelected->changeColor(sf::Color::Red);
-							//selectedGroup.reset();
-						}
-						lastSelected = selectedPart;
-					}
-				}
-				else
-				{
-					if (selectedPart != nullptr)
-						lastSelected = selectedPart;
-					selectedPart.reset();
-				}
+	//					selectedPart->changeColor(sf::Color::Green);
+	//					//lasSelectedPart may no longer be in the array
+	//					//But resource will not be deleted, in this case we will just change the color 
+	//					//for the essentially 'dead' object(which is still valid)
+	//					//it will be released when the lastSelected pointer changes to selectetPart
+	//					//If it was not deleted, we will still just change the color
+	//					if (lastSelected != nullptr && lastSelected != selectedPart)
+	//					{
+	//						lastSelected->changeColor(sf::Color::Red);
+	//						//selectedGroup.reset();
+	//					}
+	//					lastSelected = selectedPart;
+	//				}
+	//			}
+	//			else
+	//			{
+	//				if (selectedPart != nullptr)
+	//					lastSelected = selectedPart;
+	//				selectedPart.reset();
+	//			}
 
-				////////////////////////////////////SCALE//////////////////////////////////////////
-				static int selectedPoint = -1;
-				if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
-				{
-					for (auto& p : elem->getNode())
-						if ((p.getGlobalBounds().contains(eManager.currMousePos()) /*&& !pointSelected*/) || (/*pointSelected &&*/ selectedPoint == p.side && &p == selectedNode))
-						{
-							//pointSelected = true;
-							selectedPoint = p.side;
-							selectedNode = &p;
-							auto rect = elem->getRect();
-							sf::Vector2f value = { 0,0 };
-							if (!useFloat)
-							{
+	//			////////////////////////////////////SCALE//////////////////////////////////////////
+	//			static int selectedPoint = -1;
+	//			if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left) && sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z))
+	//			{
+	//				for (auto& p : elem->getNode())
+	//					if ((p.getGlobalBounds().contains(eManager.currMousePos()) /*&& !pointSelected*/) || (/*pointSelected &&*/ selectedPoint == p.side && &p == selectedNode))
+	//					{
+	//						//pointSelected = true;
+	//						selectedPoint = p.side;
+	//						selectedNode = &p;
+	//						auto rect = elem->getRect();
+	//						sf::Vector2f value = { 0,0 };
+	//						if (!useFloat)
+	//						{
 
-								static sf::Vector2f delta2;
-								delta2 += eManager.worldMouseDelta();
-								sf::Vector2i delta = -(sf::Vector2i)delta2;
-								int factor = 0.2;
-								if (abs(delta.x) > factor || abs(delta.y) > factor)
-								{
-									value.x += ceil(delta.x);
-									value.y += ceil(delta.y);
-									delta2 = { 0,0 };
-								}
-								rect = round(rect);
-							}
-							else
-								value = -eManager.worldMouseDelta();
+	//							static sf::Vector2f delta2;
+	//							delta2 += eManager.worldMouseDelta();
+	//							sf::Vector2i delta = -(sf::Vector2i)delta2;
+	//							int factor = 0.2;
+	//							if (abs(delta.x) > factor || abs(delta.y) > factor)
+	//							{
+	//								value.x += ceil(delta.x);
+	//								value.y += ceil(delta.y);
+	//								delta2 = { 0,0 };
+	//							}
+	//							rect = round(rect);
+	//						}
+	//						else
+	//							value = -eManager.worldMouseDelta();
 
-							switch (p.side)
-							{
-							case 0:
-								elem->setRect(sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height - value.y));
-								break;
-							case 1:
-								elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
-								break;
-							case 2:
-								elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
-								break;
-							case 3:
-								elem->setRect(sf::FloatRect(rect.left + value.x, rect.top, rect.width - value.x, rect.height));
-								break;
-							}
-						}
-				}
-			}
-		}
-	}
+	//						switch (p.side)
+	//						{
+	//						case 0:
+	//							elem->setRect(sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height - value.y));
+	//							break;
+	//						case 1:
+	//							elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
+	//							break;
+	//						case 2:
+	//							elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
+	//							break;
+	//						case 3:
+	//							elem->setRect(sf::FloatRect(rect.left + value.x, rect.top, rect.width - value.x, rect.height));
+	//							break;
+	//						}
+	//					}
+	//			}
+	//		}
+	//	}
+	//}
 }
 
 void CAE::Application::loadAssets()
@@ -214,28 +224,61 @@ void CAE::Application::loadAssets()
 	ImGui::BeginChild("Load assets");
 	ImGui::Spacing();
 	ImGui::Text("Available assets: ");
-	constexpr std::string_view default_path = "./assets/";
-	if (fs::exists(default_path))
+
+	ImGui::Image(ico_holder.getTexture(ico_t::Refresh), { 32,32 });
+	static std::vector<std::string> _files;
+	constexpr std::string_view default_path = "D:\\!VisualStudioProject\\CuteAnimationEditor\\CuteAnimationEditor\\assets\\";
+	if (ImGui::IsItemClicked())
 	{
-		for (auto& p : fs::directory_iterator(default_path))
+		_files.clear();
+		if (fs::exists(default_path))
 		{
-			auto name = p.path().filename().string();
-			if (p.path().extension() == ".json")
-				if (ImGui::Selectable(name.c_str()))
+			for (auto& p : fs::directory_iterator(default_path))
+			{
+				auto name = p.path().filename().string();
+				if (p.path().extension() == ".json")
+					_files.emplace_back(name);
+			}
+		}
+		else
+			Console::AppLog::addLog("directory .\"assets\" not exist", Console::error);
+	}
+	{
+		static int selected = -1;
+		int i = 0;
+		for (auto& name : _files)
+		{
+			if (ImGui::Selectable(name.c_str()))
+				selected = i;
+			if (selected == i) {
+				ImGui::BeginChild("Note");
+				ImGui::OpenPopup("Save?");
+				if (ImGui::BeginPopupModal("Save?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
 				{
-					loadAsset(p.path().parent_path().string() + "/" + name, true);
+					ImGui::Text((std::string{ "Load " } + name).c_str());
+					ImGui::Separator();
+					if (ImGui::Button("Yes", ImVec2(140, 0)))
+					{
+						loadAsset(std::string{ default_path } + name, true);
+						selected = -1;
+					}
+					ImGui::SetItemDefaultFocus();
+					ImGui::SameLine();
+					if (ImGui::Button("No", ImVec2(140, 0))) selected = -1;
+					ImGui::EndPopup();
 				}
+				ImGui::EndChild();
+			}
+			++i;
 		}
 	}
-	else
-		Console::AppLog::addLog("directory .\"assets\" not exist", Console::error);
-
 	ImGui::Spacing();
 	ImGui::Separator();
 	ImGui::Spacing();
 	ImGui::Text("Load from other path: ");
 	if (ImGui::Button("Load From"))
 	{
+#ifdef Windows
 		char filename[MAX_PATH];
 		OPENFILENAME ofn;
 		ZeroMemory(&filename, sizeof(filename));
@@ -249,6 +292,7 @@ void CAE::Application::loadAssets()
 		ofn.Flags = OFN_DONTADDTORECENT | OFN_FILEMUSTEXIST;
 		if (GetOpenFileName(&ofn))
 			loadAsset(filename, true);
+#endif
 	}
 	ImGui::EndChild();
 }
@@ -371,13 +415,79 @@ void CAE::Application::createAssets()
 {
 	ImGui::BeginChild("Create asset");
 	ImGui::Text("Create asset: ");
-	ImGui::InputText("Name", buff, IM_ARRAYSIZE(buff));
-	ImGui::InputText("Texture path", buff2, IM_ARRAYSIZE(buff2));
-	ImGui::InputText("Output file", buff3, IM_ARRAYSIZE(buff3));
+	ImGui::Separator();
+	ImGui::Spacing();
+
+	//static char buff[MAX_PATH];
+	ImGui::Text("Name");
+	ImGui::InputText("##Name", buff, 256);
+	ImGui::Spacing();
+
+	ImGui::Text("Texture path");
+	ImGui::InputText("##Texture path", buff2, IM_ARRAYSIZE(buff2));
+	ImGui::SameLine();
+	ImGui::Image(ico_holder.getTexture(ico_t::Folder), sf::Vector2f{ 27,18 });
+	if (ImGui::IsItemClicked())
+	{
+		//char filename[MAX_PATH];
+		/*CFileDialog dlgOpenFile(TRUE);
+		dlgOpenFile.GetOFN().Flags |= OFN_ALLOWMULTISELECT;*/
+#ifdef Windows
+		OPENFILENAME ofn;
+		ZeroMemory(&buff2, sizeof(buff2));
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		ofn.hwndOwner = NULL;
+		ofn.Flags = OFN_ALLOWMULTISELECT | OFN_EXPLORER;
+		ofn.lpstrFilter = (".json");
+		ofn.lpstrFile = buff2;
+		ofn.nMaxFile = MAX_PATH;
+		if (GetOpenFileName(&ofn))
+		{
+			char* str = ofn.lpstrFile;
+			std::string directory = str;
+			str += (directory.length() + 1);
+			while (*str) {
+				std::string filename = str;
+				str += (filename.length() + 1);
+				// use the filename, e.g. add it to a vector
+			}
+		}
+#endif
+		//buff
+	}
+	ImGui::Spacing();
+
+	ImGui::Text("Output file");
+	ImGui::InputText("##Output file", buff3, IM_ARRAYSIZE(buff3));
+	ImGui::SameLine();
+	ImGui::Image(ico_holder.getTexture(ico_t::Folder), sf::Vector2f{ 27,18 });
+	if (ImGui::IsItemClicked())
+	{
+	    #ifdef Windows
+		//char filename[MAX_PATH];
+		OPENFILENAME ofn;
+		ZeroMemory(&buff3, sizeof(buff3));
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(ofn);
+		ofn.hwndOwner = NULL;
+		ofn.lpstrFilter = (".json");
+		ofn.lpstrFile = buff3;
+		ofn.nMaxFile = MAX_PATH;
+		GetSaveFileName(&ofn);
+		//buff
+#endif
+	}
+	ImGui::Spacing();
+
+	ImGui::Separator();
 	if (ImGui::Button("Create"))
 	{
 		ofstream out;
-		out.open(buff3);
+		std::string t(buff3);
+		if (t.find(".json") == std::string::npos)
+			t += ".json";
+		out.open(t);
 		json j;
 		auto& defaultInfo = j["defaultInfo"];
 		defaultInfo["name"] = buff;
@@ -408,13 +518,40 @@ void CAE::Application::editor()
 			ImGui::TextColored(ImVec4(1, 0, 0, 1), "groups is empty");
 		else
 		{
-			if (ImGui::Button("store coordinates as int"))
-				for (auto group : *currAsset)
+			if (tools_container.current_if(tool_type::MAGICTOOL))
+			{
+				auto mg = tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL);
+				static std::string selectedGroup;
+				static bool renameState = false;
+				int id = 0;
+				static int _id = 0;
+				for (auto& group : currAsset->groups)
 				{
-					for (auto part : *group)
-						part->coordToInt();
+					ImGui::PushID(++id);
+					if ((renameState && !(_id == id)) || !renameState)
+					{
+						if (ImGui::Selectable(group->getName().c_str(), selectedGroup == group->getName()))
+						{
+							selectedGroup = group->getName();
+							mg->setSelectedGroup(group);
+						}
+						if (ImGui::IsItemClicked(1))
+						{
+							_id = id;
+							renameState = true;
+						}
+					}
+					else if (ImGui::InputText("Rename", buff, 256, ImGuiInputTextFlags_EnterReturnsTrue))
+					{
+						group->setName(buff);
+						strcpy(buff, "");
+						renameState = false;
+					}
+					ImGui::PopID();
 				}
-			editorDragDropLogic();
+			}
+			else
+				editorDragDropLogic();
 		}
 		ImGui::Spacing();
 		ImGui::Separator();
@@ -470,9 +607,8 @@ void CAE::Application::editorDragDropLogic()
 		p.second = std::stoi(d.substr(middle + 1, d.length() - middle));
 		return p;
 	};
-
 	//////////////////Erase Add Buttons//////////////////
-	ImGui::Image(deleteSprite_ico, sf::Vector2f{ 32,32 });
+	ImGui::Image(ico_holder.getTexture(ico_t::Editor_Delete), sf::Vector2f{ 32,32 });
 	if (ImGui::BeginDragDropTarget())
 	{
 		if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
@@ -485,17 +621,34 @@ void CAE::Application::editorDragDropLogic()
 
 			}
 			else if (group_n == -2) //Group erase
-				currAsset->groups.erase(currAsset->groups.begin() + part_n);
+			{
+				selectedGroups.emplace(part_n);
+				int _i = 0;
+				for (auto& i : selectedGroups)
+				{
+					currAsset->groups.erase(currAsset->groups.begin() + (i - _i));
+					++_i;
+				}
+				selectedGroups.clear();
+			}
 			else //Part erase
 			{
 				auto& p = currAsset->groups[group_n]->getParts();
-				p.erase(p.begin() + part_n);
+				selectedParts.emplace(part_n);
+				int _i = 0;
+				for (auto& i : selectedParts)
+				{
+					p.erase(p.begin() + (i - _i));
+					++_i;
+				}
+				selectedParts.clear();
+				//p.erase(p.begin() + part_n);
 			}
 		}
 		ImGui::EndDragDropTarget();
 	}
 	ImGui::SameLine();
-	ImGui::Image(addSprite_ico, sf::Vector2f{ 32,32 });
+	ImGui::Image(ico_holder.getTexture(ico_t::Editor_Add), sf::Vector2f{ 32,32 });
 	if (ImGui::IsWindowHovered() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
 		if (ImGui::GetIO().MouseReleased[0])
 			editorSubArray.emplace_back(std::make_shared<Part>(sf::FloatRect(0, 0, 20, 20), ++global_id));
@@ -538,10 +691,23 @@ void CAE::Application::editorDragDropLogic()
 		ImGui::TreePop();
 	}
 	int group_id = 0;
+	static ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_None; //ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
 	for (auto& group : currAsset->groups)
 	{
 		ImGui::PushID(group_id);
-		if (ImGui::TreeNode(group->getName().c_str()))
+		ImGuiTreeNodeFlags nd = base_flags;
+		if (group->isSelected())
+			nd |= ImGuiTreeNodeFlags_::ImGuiTreeNodeFlags_Selected;
+		bool node_open = ImGui::TreeNodeEx((void*)(intptr_t)group_id, nd, group->getName().c_str());
+		if (ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
+		{
+			Console::AppLog::addLog("Node " + group->getName() + " Clicked", Console::info);
+			if (group->setSelected(!group->isSelected()))
+				selectedGroups.emplace(group_id);
+			else
+				selectedGroups.erase(group_id);
+		}
+		if (node_open)
 		{
 			//////////////////Drag&Drop group(State: TreeNode open)//////////////////
 			if (ImGui::BeginDragDropTarget())
@@ -560,8 +726,22 @@ void CAE::Application::editorDragDropLogic()
 					{
 						auto& g = currAsset->groups[group_n];
 						auto& p = currAsset->groups[group_n]->getParts();
-						group->getParts().push_back(p[part_n]);
-						g->getParts().erase(g->getParts().begin() + part_n);
+
+						selectedParts.emplace(part_n);
+
+						for (auto& i : selectedParts)
+						{
+							group->getParts().push_back(p[i]);
+						}
+						int _i = 0;
+						for (auto& i : selectedParts)
+						{
+
+							g->getParts().erase(g->getParts().begin() + (i - _i));
+							++_i;
+						}
+						//group->getParts().push_back(p[part_n]);
+						//g->getParts().erase(g->getParts().begin() + part_n);
 					}
 				}
 				ImGui::EndDragDropTarget();
@@ -569,7 +749,7 @@ void CAE::Application::editorDragDropLogic()
 
 			//////////////////END//////////////////
 			static int prsId = 0;
-			if (ImGui::Button("Get Magic Selection Rect"))
+			if (ImGui::ImageButton(ico_holder.getTexture(ico_t::Magic), { 32,32 }))
 			{
 				selectArea = true;
 				prsId = group_id;
@@ -596,8 +776,8 @@ void CAE::Application::editorDragDropLogic()
 							rect.width = delta.x;
 							rect.height = delta.y;
 						}
-						shape.setPosition(sf::Vector2f( rect.left,rect.top ));
-						shape.setSize(sf::Vector2f(rect.width,rect.height ));
+						shape.setPosition(sf::Vector2f(rect.left, rect.top));
+						shape.setSize(sf::Vector2f(rect.width, rect.height));
 					}
 					else if (once)
 					{
@@ -610,8 +790,8 @@ void CAE::Application::editorDragDropLogic()
 						selectArea = false;
 						once = false;
 						rect = {};
-						shape.setPosition(sf::Vector2f(0,0));
-						shape.setSize(sf::Vector2f(0,0));
+						shape.setPosition(sf::Vector2f(0, 0));
+						shape.setSize(sf::Vector2f(0, 0));
 					}
 				}
 			}
@@ -626,7 +806,15 @@ void CAE::Application::editorDragDropLogic()
 				ImGui::PushID(part_id);
 				auto& part = *iter;
 				auto r = part->getRect();
-				ImGui::Selectable(make_text(*part).c_str());
+				ImGui::Selectable(make_text(*part).c_str(), part->isSelected());
+				if (ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
+				{
+					Console::AppLog::addLog("Part", Console::info);
+					if (part->setSelected(!part->isSelected()))
+						selectedParts.emplace(part_id);
+					else
+						selectedParts.erase(part_id);
+				}
 				//////////////////Drag&Drop parts//////////////////
 				if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
 				{
@@ -683,8 +871,21 @@ void CAE::Application::editorDragDropLogic()
 					{
 						auto& g = currAsset->groups[group_n];
 						auto& p = currAsset->groups[group_n]->getParts();
-						group->getParts().push_back(p[part_n]);
-						g->getParts().erase(g->getParts().begin() + part_n);
+
+						selectedParts.emplace(part_n);
+
+						for (auto& i : selectedParts)
+						{
+							group->getParts().push_back(p[i]);
+
+						}
+						int _i = 0;
+						for (auto& i : selectedParts)
+						{
+
+							g->getParts().erase(g->getParts().begin() + (i - _i));
+							++_i;
+						}
 					}
 				}
 				ImGui::EndDragDropTarget();
@@ -756,8 +957,8 @@ void CAE::Application::saveAsset()
 		//ImGui::InputText("File Path", buff, IM_ARRAYSIZE(buff));
 		if (ImGui::Button("Save File as"))
 		{
+#ifdef Windows
 			char filename[MAX_PATH];
-
 			OPENFILENAME ofn;
 			ZeroMemory(&filename, sizeof(filename));
 			ZeroMemory(&ofn, sizeof(ofn));
@@ -769,6 +970,7 @@ void CAE::Application::saveAsset()
 			if (GetSaveFileName(&ofn))
 				currAsset->saveAsset(std::string(filename) + ".json");
 			//clearBuffers();
+#endif
 		}
 	}
 	else
@@ -786,7 +988,7 @@ void CAE::Application::drawMenuBar()
 				state = states::Null;
 			if (ImGui::MenuItem("Load Asset", NULL, state == states::LoadAsset))
 				state = states::LoadAsset;
-			if (ImGui::MenuItem("Create Asset", NULL, state == states::CreateAsset))
+			if (ImGui::MenuItem("New", NULL, state == states::CreateAsset))
 				state = states::CreateAsset;
 			if (ImGui::MenuItem("Save Asset", NULL, state == states::SaveAsset))
 				state = states::SaveAsset;
@@ -847,54 +1049,30 @@ void CAE::Application::drawUI()
 
 void CAE::Application::addEventsHandler()
 {
+	EventManager& eManager = eventManagers.addEM("MainManager");
 	eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
 	eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
 	eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Delete), &Application::deletSelectedPart_e, this);
 	eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Tilde), [this](sf::Event&) {LogConsole = !LogConsole; });
-
-	eManager.addInput({ sf::Keyboard::Space, sf::Mouse::Button::Left },
-		[this]() {
-			if (useMouse)
-			{
-				view.move(eManager.worldMouseDelta());
-				eManager.updateMousePosition(*window, view);//because the view position has changed, the mouse position (even if it did not move in the next frame) 
-															//will be different on the next frame. to avoid re-shifting the view, 
-															//you need to update the mouse coordinates again, already in the new view
-				//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-			} });
-	//eManager.addEvent(MouseEvent::WheelScrolled(), [this](sf::Event&) {std::cout << "1scrolled \n"; });
-	eManager.addEvent(MouseEvent::WheelScrolled(), &Application::viewScale_e, this);
-	//eManager.addEvent(MouseEvent::WheelScrolled(), [this](sf::Event&) {std::cout << "2scrolled \n"; });
-	//eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event&) { std::cout << "11 \n"; });
-	//eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Right), [this](sf::Event&) { std::cout << "12 \n"; });
 	eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&) { pointSelected = false; });
 }
 
-
-
 CAE::Application::Application(sf::RenderWindow& w)
-	: window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0), selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true)
+	: tools_container(this, &w), window(&w), state(states::Null), useMouse(false), scaleFactor(1.5f), scaleSign(0),
+	selectedPart(nullptr), selectedNode(nullptr), nodeSize(5), useFloat(true), eventManagers(),
+      LogConsole(false)
 {
-	deleteTexture_ico.loadFromFile("attention.png");
-	deleteTexture_ico.setSmooth(true);
-	deleteSprite_ico.setTexture(deleteTexture_ico);
-	//deleteSprite_ico.setScale({ 0.05f,0.05f });
-	addTexture_ico.loadFromFile("addico.png");
-	addTexture_ico.setSmooth(true);
-	addSprite_ico.setTexture(addTexture_ico);
-	//addSprite_ico.setScale({ 0.05f,0.05f });
 	addEventsHandler();
 	view.setSize(w.getDefaultView().getSize());
-	/*shape.setFillColor(sf::Color::Transparent);
-	shape.setOutlineColor(sf::Color::Red);*/
-	//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
+	scaleView = unscaleView = view.getSize();
+	tools_container.Init();
 }
 
 void CAE::Application::clearBuffers()
 {
-	strcpy_s(buff, "");
-	strcpy_s(buff2, "");
-	strcpy_s(buff3, "");
+	strcpy(buff, "");
+	strcpy(buff2, "");
+	strcpy(buff3, "");
 }
 
 void CAE::Application::loadState()
@@ -943,12 +1121,13 @@ void CAE::Application::saveState()
 	open.close();
 }
 
-void CAE::Application::loadAsset(std::string path, bool setAsCurr)
+void CAE::Application::loadAsset(const std::string& path, bool setAsCurr)
 {
 	if (!path.empty())
 	{
-		auto task = [this, setAsCurr](std::string copyBuffer)
+		auto task = [this, setAsCurr](const std::string& copyBuffer)
 		{
+            sf::Context _;  //loadFromFile() create texture
 			auto ptr = std::make_shared<CAE::AnimationAsset>(copyBuffer);
 			if (ptr->loadFromFile())
 			{
@@ -966,6 +1145,7 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 				if (setAsCurr)
 				{
 					currAsset = *animAssets.begin();
+					tools_container.changeCurrAsset(currAsset);
 					magicTool.setImage(*currAsset->getTexture());
 					magicTool.makeTransformImage();
 				}
@@ -974,6 +1154,7 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 			//	delete ptr;
 		};
 		Console::AppLog::addLog("Loading asset from: " + path, Console::message);
+        //task(path);
 		std::thread(task, path).detach();
 		clearBuffers();
 	}
@@ -1007,39 +1188,44 @@ void CAE::Application::viewScale_e(sf::Event& event)
 {
 	if (!toolsWindowFocused)
 	{
-		auto prev = view.getSize();
-
+		//auto Nview = view.getSize();
+		scaleView = view.getSize();
 		if (event.mouseWheelScroll.delta < 0)
 		{
-			prev.x *= scaleFactor;
-			prev.y *= scaleFactor;
+			scaleView.x *= scaleFactor;
+			scaleView.y *= scaleFactor;
+			unscaleView.x /= scaleFactor;
+			unscaleView.y /= scaleFactor;
 			nodeSize += 0.3;
 			scaleSign = 1;
 		}
 		else
 		{
-			prev.x /= scaleFactor;
-			prev.y /= scaleFactor;
+			scaleView.x /= scaleFactor;
+			scaleView.y /= scaleFactor;
+
+			unscaleView.x *= scaleFactor;
+			unscaleView.y *= scaleFactor;
 			nodeSize -= 0.3;
 			scaleSign = -1;
 		}
 
-		if (asyncNodeScale.joinable())
-			asyncNodeScale.join();
+		//if (asyncNodeScale.joinable())
+		//	asyncNodeScale.join();
 
-		asyncNodeScale = std::thread(
-			[this]()
-			{
-				if (currAsset != nullptr)
-				{
-					for (auto group : *currAsset) //yep, one day it may fall
-						for (auto part : *group) //yep, one day it may fall
-							for (auto& node : part->getNode()) //yep, one day it may fall
-								node.updateRadius(nodeSize); //yep, one day it may fall
-				}
-			});
+		//asyncNodeScale = std::thread(
+		//	[this]()
+		//	{
+		//		if (currAsset != nullptr)
+		//		{
+		//			for (auto group : *currAsset) //yep, one day it may fall
+		//				for (auto part : *group) //yep, one day it may fall
+		//					for (auto& node : part->getNode()) //yep, one day it may fall
+		//						node.updateRadius(nodeSize); //yep, one day it may fall
+		//		}
+		//	});
 
-		view.setSize(prev);
+		view.setSize(scaleView);
 		viewUpdated();
 	}
 }
@@ -1047,9 +1233,6 @@ void CAE::Application::viewScale_e(sf::Event& event)
 void CAE::Application::magicSelection()
 {
 	ImGui::BeginChild("Magic Selection Settings");
-	//if (magicTool.mode > 2)
-	//{
-
 	ImGui::SliderInt("Type of transformation", &magicTool.mode, 0, 2);
 	ImGui::Checkbox("user morph", &magicTool.useMorph);
 	ImGui::Checkbox("user gray", &magicTool.gray);
@@ -1063,112 +1246,17 @@ void CAE::Application::magicSelection()
 		ImGui::SliderInt("Rect g", &magicTool.kernel_rect.y, 0, 255);
 	}
 	ImGui::Text("offset");
-	ImGui::InputInt("left",&magicTool.offset.left);
+	ImGui::InputInt("left", &magicTool.offset.left);
 	ImGui::InputInt("top", &magicTool.offset.top);
 	ImGui::InputInt("rigt", &magicTool.offset.width);
 	ImGui::InputInt("bottom", &magicTool.offset.height);
-	//}
-
 	if (ImGui::Button("Processed Image"))
-	{
 		magicTool.makeTransformImage();
-		/*magicTool.source_image = sfml2opencv(currAsset->getTexture()->copyToImage(), true);
-		magicTool.transform_image = cv::Mat::zeros(magicTool.source_image.size(), magicTool.source_image.type());
-		for (int i = 0; i < magicTool.transform_image.rows; ++i)
-		{
-			for (int j = 0; j < magicTool.transform_image.cols; ++j)
-			{
-				auto p = magicTool.source_image.at<cv::Vec4b>(i, j);
-				if (p[3] != 0)
-				{
-					if (magicTool.makeAllBlack)
-					{
-						p[0] = 0;
-						p[1] = 0;
-						p[2] = 0;
-					}
-					else
-					{
-						p[0] += magicTool.add;
-						p[1] += magicTool.add;
-						p[2] += magicTool.add;
-					}
-				}
-				magicTool.transform_image.at<cv::Vec4b>(i, j) = p;
-			}
-		}
-		if (magicTool.gray)
-			cvtColor(magicTool.transform_image, magicTool.transform_image, CV_RGB2GRAY);
-
-		switch (magicTool.mode)
-		{
-		case 0:
-		{
-			magicTool.offset = { 1,1 ,-1,-1 };
-		}
-		break;
-		case 1:
-		{
-			magicTool.offset = { 1,1 ,-1,-1 };
-			cv::Mat sub_mat = cv::Mat::zeros(magicTool.transform_image.size(), CV_8UC3);
-			cv::Canny(magicTool.transform_image, sub_mat, magicTool.thresh, magicTool.thresh * 2, 3);
-			magicTool.transform_image = sub_mat;
-		}
-		break;
-		case 2:
-			cv::threshold(magicTool.transform_image, magicTool.transform_image, magicTool.thresh, 255, 0);
-			break;
-		case 3:
-			break;
-		}
-		if (magicTool.useMorph)
-		{
-			auto rect_kernel = getStructuringElement(cv::MORPH_RECT, cv::Size(magicTool.kernel_rect.x, magicTool.kernel_rect.y));
-			cv::Mat sub_mat = cv::Mat::zeros(magicTool.transform_image.size(), CV_8UC3);
-			cv::morphologyEx(magicTool.transform_image, sub_mat, cv::MORPH_CLOSE, rect_kernel, cv::Point(-1, -1), magicTool.morph_iteration);
-			magicTool.transform_image = sub_mat;
-		}
-		cv::imshow("th2", magicTool.transform_image);*/
-	}
 	if (ImGui::Button("Get Rects"))
 	{
-
-		//vector<vector<cv::Point>> contours;
-		//vector<cv::Vec4i> hierarchy;
-		//findContours(magicTool.transform_image, contours, hierarchy, cv::RETR_TREE, CV_CHAIN_APPROX_SIMPLE);
-
-		//////addWeighted(image_2, 0.75, contours, 0.25, 0, drawing);
-		//////drawContours(drawing, contours, -1, cv::Scalar(255));
-		////cv::Mat rect = cv::Mat::zeros(th2.size(), CV_8UC3);
-		////vector<vector<cv::Point> > contours_poly(contours.size());
-		////vector<cv::Rect> boundRect(contours.size());
-		////vector<cv::Point2f>centers(contours.size());
-		////vector<float>radius(contours.size());
-		//for (int i = 1; i >= 0; i = hierarchy[i][0])
-		//{
-		//	//print it
-		//	//cv::drawContours(img, contours, i, cv::Scalar(255));
-		//	//out.emplace_back(cv::boundingRect(contours[i]));
-		//	//cv::rectangle(img, cv::boundingRect(contours[i]), cv::Scalar(120, 120, 255, 255));
-		//	//for every of its internal contours
-		//	//for (int j = hierarchy[i][2]; j >= 0; j = hierarchy[j][0])
-		//	//{
-		//	//	//	//recursively print the external contours of its children
-		//	//	printExternalContours(img, contours, hierarchy, hierarchy[j][2]);
-		//	//}
-		//	//vector<cv::Point> poly;
-		//	//approxPolyDP(contours[i], poly, 5, true);
-		//	auto rect = boundingRect(contours[i]);
-		//	//rect.x -= 10;
-		//	//rect.y -= 10;
-		//	cv::rectangle(magicTool.source_image, rect, cv::Scalar(10, 10, 255, 100));
-		//	magicTool.boundRect.emplace_back(rect);
-		//}
-		//printExternalContours(magicTool.source_image, contours, hierarchy, 0);
+		magicTool.makeBounds();
 		cv::imshow("th3", magicTool.source_image);
 	}
-	//sf::Texture t;
-	//t.loadFromImage(magicTool.getTransformPreview());
 	static sf::Texture texture;
 	static sf::Sprite sprite;
 	texture.loadFromImage(magicTool.getTransformPreview());
@@ -1197,12 +1285,7 @@ void CAE::Application::showLog(std::string_view txt)
 	ImGui::End();
 }
 
-void CAE::Application::viewUpdated()
-{
-	//attention.setPosition(window->mapPixelToCoords(sf::Vector2i(0, 0), view));
-	//auto scale = (scaleSign > 0) ? attention.getScale().x * scaleFactor : attention.getScale().x / scaleFactor;
-	//attention.setScale({ scale, scale });
-}
+void CAE::Application::viewUpdated() {}
 
 void CAE::Application::start()
 {
@@ -1229,15 +1312,31 @@ void CAE::Application::start()
 		else
 		{
 			drawUI();
-			toolsWindowFocused = ImGui::IsAnyWindowFocused();
+			toolsWindowFocused = ImGui::IsAnyWindowHovered();
 			ImGui::End();
 		}
 
 #ifdef DEBUG
+		ImGui::ShowDemoWindow();
 		ImGui::Begin("Debug", 0, ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::Text("Manager x: %f, y: %f", eManager.curr_mpos_f.x, eManager.curr_mpos_f.y);
-		ImGui::Text("PrevManager x: %f, y: %f", eManager.prev_mpos_f.x, eManager.prev_mpos_f.y);
-		ImGui::Text("delta x: %f", eManager.worldMouseDelta());
+		ImGui::Text("Mouse pos x: %f, y: %f", eManager.curr_mpos_f.x, eManager.curr_mpos_f.y);
+		ImGui::Text("Mouse delta x: %f", eManager.worldMouseDelta());
+		ImGui::Separator();
+		ImGui::Text("Flags:");
+		ImGui::Text("delta clock: %f", this->deltaClock.getElapsedTime().asSeconds());
+		ImGui::Text("view pos %f %f", this->view.getCenter().x, this->view.getCenter().y);
+		ImGui::Text("CreatorMode: %i", this->creatorMode);
+		ImGui::Text("selectArea: %i", this->creatorMode);
+		ImGui::Text("toolsWindowFocused: %i", this->toolsWindowFocused);
+		ImGui::Text("LogConsole: %i", this->LogConsole);
+		ImGui::Separator();
+		ImGui::Text("state: %i", this->state);
+		ImGui::Text("nodeSize: %f", this->nodeSize);
+		ImGui::Separator();
+		ImGui::Text("Buffers: ");
+		ImGui::Text("buff: %s", this->buff);
+		ImGui::Text("buff2: %s", this->buff2);
+		ImGui::Text("buff3: %s", this->buff3);
 		ImGui::End();
 #endif // DEBUG
 
