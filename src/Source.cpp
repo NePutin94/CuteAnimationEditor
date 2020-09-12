@@ -1,7 +1,5 @@
 #include <imgui/include/imgui-SFML.h>
-#include "Application.h"
-#include "EventManager.h"
-
+#include "../include/Application.h"
 using namespace CAE;
 
 int main()

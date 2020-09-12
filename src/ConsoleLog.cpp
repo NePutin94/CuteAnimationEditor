@@ -1,4 +1,4 @@
-#include "ConsoleLog.h"
+#include "../include/ConsoleLog.h"
 #include <cmath>
 #include <iostream>
 #include <fstream>

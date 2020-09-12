@@ -1,6 +1,5 @@
-#include "AnimationAsset.h"
+#include "../include/AnimationAsset.h"
 #include <iomanip>
-
 
 bool CAE::AnimationAsset::loadFromFile()
 {

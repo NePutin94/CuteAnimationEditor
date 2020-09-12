@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.17)
+project(CAE)
+
+set(CMAKE_CXX_STANDARD 17)
+if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -O0 -g")
+else()
+    set(CMAKE_CXX_FLAGS "-O3")
+endif()
+
+file(GLOB_RECURSE HEADERS RELATIVE ${CMAKE_SOURCE_DIR} "include/*.h")
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} "src/*.cpp")
+file(GLOB_RECURSE IMGUI RELATIVE ${CMAKE_SOURCE_DIR} "imgui/include/*.cpp")
+
+find_package(Threads)
+find_package(OpenGL REQUIRED)
+find_package(GLUT REQUIRED)
+find_package(SFML 2.5 COMPONENTS system window graphics network audio)
+find_package(OpenCV REQUIRED)
+
+include_directories(${SFML_INCLUDE_DIRS})
+include_directories(${OPENGL_INCLUDE_DIRS}  ${GLUT_INCLUDE_DIRS})
+include_directories(${CMAKE_SOURCE_DIR}/imgui/)
+add_executable(CAE include/Math.h ${SOURCES} ${IMGUI} )
+target_link_libraries(CAE ${OPENGL_LIBRARIES} ${GLUT_LIBRARY} )
+target_link_libraries (CAE sfml-graphics sfml-window sfml-system)
+target_link_libraries(CAE ${OpenCV_LIBS} )
+target_link_libraries(CAE ${CMAKE_THREAD_LIBS_INIT} )

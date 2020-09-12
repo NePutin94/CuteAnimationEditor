@@ -1,4 +1,4 @@
-#include "Group.h"
+#include "../include/Group.h"
 
 void CAE::Part::update()
 {

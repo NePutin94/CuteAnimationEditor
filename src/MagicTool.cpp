@@ -1,4 +1,4 @@
-#include "MagicTool.h"
+#include "../include/MagicTool.h"
 
 std::vector<sf::FloatRect> MagicTool::makeBounds()
 {
