@@ -64,6 +64,7 @@ namespace CAE
 			static std::string lastLog()
 			{
 				std::shared_lock<std::shared_mutex> lock{ globalMutex };
+
 				if (offset == 0)
 					return Buffer.back().pervText;
 				else

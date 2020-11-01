@@ -1,5 +1,5 @@
-#include "Application.h"
-#include "EventManager.h"
+#include "../include/Application.h"
+
 using namespace CAE;
 int main()
 {
@@ -7,6 +7,5 @@ int main()
 	ImGui::SFML::Init(window, true);
 	CAE::Application app(window);
 	app.start();
-
 	return 0;
 }

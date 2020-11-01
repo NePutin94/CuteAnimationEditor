@@ -4,6 +4,7 @@
 
 #pragma once
 #include <SFML/Graphics.hpp>
+#include <list>
 #include "AnimationAsset.h"
 namespace CAE
 {
@@ -58,12 +59,12 @@ namespace CAE
 	};
 
 	/*------------------------------------------------------------------Tiny Animation Player------------------------------------------------------------------*/
-	class TAP : public std::list<CaeAnimation> 
+	class TAP : public std::list<CaeAnimation>
 	{
 	private:
 		CaeAnimation* currAnim;
 	public:
-		TAP() = default;
+		TAP() : currAnim(nullptr){}
 
 		void setCurrentAnim(CaeAnimation& anim) { currAnim = &anim;}
 		auto getCurrentAnimation() { return currAnim; }
@@ -74,7 +75,7 @@ namespace CAE
 			return (hasAnimation()) ? currAnim->tick(t) : sf::FloatRect{0,0,0,0};
 		}
 
-		void parseAnimationAssets(std::vector<std::shared_ptr<Group>> groups) 
+		void parseAnimationAssets(std::vector<std::shared_ptr<Group>> groups)
 		{
 			clear();
 			currAnim = nullptr;
