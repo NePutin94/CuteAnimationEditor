@@ -22,13 +22,15 @@ namespace CAE
     class Application
     {
     private:
+        int corner = 1;
+        int bg_alpha = 8.f;
         IcoHolder ico_holder;
         Tools tools_container;
         TAP animPlayer;
         //MagicTool    magicTool;
         //EventManager eManager;
         EMHolder eventManagers;
-
+        float fps;
         std::shared_ptr<AnimationAsset> currAsset;
         std::list<std::shared_ptr<AnimationAsset>> animAssets;
         std::vector<std::shared_ptr<Part>> editorSubArray;
@@ -62,8 +64,6 @@ namespace CAE
         std::set<int> selectedParts;
         std::set<int> selectedGroups;
 
-        //std::thread asyncNodeScale;
-        float ftStep{1.f}, ftSlice{1.f}, lastFt{1.f}, currentSlice{0.f};
         float scaleFactor; //global scale factor, set as a constant
         float nodeSize;
         int scaleSign;   //can only be positive(1) and negative(-1)
@@ -77,7 +77,7 @@ namespace CAE
         //bool pointSelected;
         bool useFloat;
         bool newMessage;
-        bool selectArea;
+        //bool selectArea;
 
         void handleEvent(sf::Event& event);
 

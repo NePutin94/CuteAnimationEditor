@@ -13,6 +13,7 @@ namespace CAE
         sf::RectangleShape shape;
         bool ButtonPressed;
         bool once;
+        bool Selection;
         sf::IntRect rect;
 
         void assetUpdated() override
@@ -74,7 +75,7 @@ namespace CAE
         }
 
     public:
-        SelectionTool(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window) : Tool(m, t, window)
+        SelectionTool(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window) : Tool(m, t, window), Selection(false)
         {
             shape.setFillColor(sf::Color::Transparent);
             shape.setOutlineColor(sf::Color::Blue);
@@ -102,6 +103,10 @@ namespace CAE
                 shape.setPosition(sf::Vector2f(0, 0));
                 shape.setSize(sf::Vector2f(0, 0));
             });
+            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::LControl), [this](sf::Event&)
+            {
+                Selection = true;
+            });
             eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event&)
             {
                 ButtonPressed = true;
@@ -112,14 +117,14 @@ namespace CAE
             {
                 if(once)
                 {
-                    ButtonPressed = false;
                     once = false;
                     calcRect(rect);
                 }
+                ButtonPressed = false;
             });
             eManager.addEvent(MouseEvent(sf::Event::MouseMoved), [this](sf::Event&)
             {
-                if(ButtonPressed)
+                if(!Selection && ButtonPressed)
                 {
                     if(!once)
                     {
@@ -136,6 +141,22 @@ namespace CAE
                     shape.setSize(sf::Vector2f(rect.width, rect.height));
                 }
             });
+            eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left),
+                              [this](sf::Event&)
+                              {
+                                  if(Selection)
+                                      for(auto& g : *asset)
+                                          for(auto& part : *g)
+                                          {
+                                              if(part->getRect().contains(EventsHolder.currMousePos()))
+                                              {
+                                                  part->setSelected(!part->isSelected());
+                                                  g->setSelected(part->isSelected());
+                                                  Selection = false;
+                                                  return;
+                                              }
+                                          }
+                              });
         }
 
         void update() override

@@ -17,7 +17,6 @@ namespace CAE
 		sf::Vector2f   origin;
 		AnimationState state;
 		std::vector<sf::FloatRect> frames;
-		//yep,  these are fields like the group entity
 		float frame;
 		float frameCount;
 		float speed;

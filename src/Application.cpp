@@ -7,7 +7,7 @@
 #include <vector>
 #include "../include/myImGui.h"
 
-#define DEBUG
+//#define DEBUG
 
 namespace fs = std::filesystem;
 
@@ -36,20 +36,32 @@ sf::Vector2<T> operator/(sf::Vector2<T> f, sf::Vector2<T> s)
 void CAE::Application::handleEvent(sf::Event& event)
 {
     //static bool moving = false;
-    static sf::Vector2f oldPos;
+    //static sf::Vector2f oldPos;
+    bool need = false;
     while(window->pollEvent(event))
     {
+        ImGui::SFML::ProcessEvent(event);
         if(event.type == sf::Event::Closed)
         {
             state = states::Exit;
             break;
         }
-        //eManager.updateEvent(event);
+        if(event.type == sf::Event::GainedFocus)
+        {
+            need = true;
+        }
         eventManagers.updateEvent(event, *window);
-        ImGui::SFML::ProcessEvent(event);
     }
     eventManagers.updatecurr(*window, view); //it must be performed before all updates for the current frame
     eventManagers.updateInput();
+    if(need)
+    {
+        INPUT input;
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = VK_LMENU;
+        input.ki.dwFlags = KEYEVENTF_KEYUP;
+        SendInput(1, &input, sizeof(INPUT));
+    }
 }
 
 void CAE::Application::draw()
@@ -142,15 +154,17 @@ void CAE::Application::loadAssets()
     {
         static int selected = -1;
         int i = 0;
+        ImGui::Separator();
         for(auto& name : _files)
         {
             if(ImGui::Selectable(name.c_str()))
                 selected = i;
+            ImGui::Spacing();
             if(selected == i)
             {
                 ImGui::BeginChild("Note");
-                ImGui::OpenPopup("Save?");
-                if(ImGui::BeginPopupModal("Save?", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+                ImGui::OpenPopup("Open");
+                if(ImGui::BeginPopupModal("Open", NULL, ImGuiWindowFlags_AlwaysAutoResize))
                 {
                     ImGui::Text("%s", (std::string{"Load "} + name).c_str());
                     ImGui::Separator();
@@ -169,7 +183,6 @@ void CAE::Application::loadAssets()
             ++i;
         }
     }
-    ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
     ImGui::Text("Load from other path: ");
@@ -227,7 +240,7 @@ void CAE::Application::tapWindow()
                 auto curr = animPlayer.getCurrentAnimation();
                 if(ImGui::BeginTabItem("Show Animation"))
                 {
-                    sf::FloatRect rect = animPlayer.animUpdate(antime ? 1 : 0);
+                    sf::FloatRect rect = animPlayer.animUpdate(antime ? (1.f / fps) : 0);
                     float d = 150 / rect.height;
                     auto size = sf::Vector2f(rect.width, rect.height);
                     size.x *= d;
@@ -249,7 +262,8 @@ void CAE::Application::tapWindow()
                     {
                         int id = 1;
                         for(auto& frame : curr->frames)
-                            ImGui::Text("#%d: left: %.2f top: %.2f w: %.2f h: %.2f", id, frame.left, frame.top, frame.width, frame.height);
+                            ImGui::Text("#%d: left: %.2f top: %.2f w: %.2f h: %.2f", id++, frame.left, frame.top, frame.width,
+                                        frame.height);
                         ImGui::TreePop();
                     }
                     ImGui::EndTabItem();
@@ -276,8 +290,10 @@ void CAE::Application::viewSettings()
     if(ImGui::TreeNode("View Settings: "))
     {
         ImGui::Text("View Size: ");
-        static float xSize = view.getSize().x;
-        static float ySize = view.getSize().y;
+        static float xSize;
+        static float ySize;
+        xSize = view.getSize().x;
+        ySize = view.getSize().y;
         ImGui::DragFloat("Size X: ", &xSize, 1.f);
         ImGui::DragFloat("Size Y:", &ySize, 1.f);
         if(currAsset != nullptr)
@@ -291,14 +307,18 @@ void CAE::Application::viewSettings()
             view.setSize(xSize, ySize);
         ImGui::Separator();
         ImGui::Text("View Center: ");
-        static float x = view.getCenter().x;
-        static float y = view.getCenter().x;
+        static float x;
+        static float y;
+        x = view.getCenter().x;
+        y = view.getCenter().x;
         ImGui::InputFloat("position X", &x);
         ImGui::InputFloat("position Y", &y);
         if(ImGui::Button("Update Position"))
             view.setCenter(x, y);
         ImGui::Separator();
         ImGui::Checkbox("use the mouse to move", &useMouse);
+        ImGui::Separator();
+        tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->settingWindow();
         ImGui::TreePop();
     }
     ImGui::EndChild();
@@ -324,9 +344,10 @@ void CAE::Application::createAssets()
     static std::multimap<int, sf::Texture> textures;
     static sf::Vector2u maxFrame;
     static sf::Texture tt;
+    static json j;
+    static int groupCount = 0;
     if(ImGui::TreeNode("Texture path"))
     {
-        static int groupCount = 0;
         ImGui::Checkbox("Make by group", &makeByGroup);
         if(makeByGroup)
         {
@@ -342,12 +363,8 @@ void CAE::Application::createAssets()
             if(auto val = ImGui::FileManager(c); val.first)
             {
                 std::string directory = c.getPath();
-                json j;
-                if(groupCount >= 0)
-                {
+                if(groupCount == 0)
                     j["AssetCreate"] = json::array();
-                }
-
                 json j_;
                 j_["PathsToTexture"] = directory;
                 auto& p = j_["Textures"];
@@ -369,7 +386,7 @@ void CAE::Application::createAssets()
                     maxFrame.y = std::max(elem.second.getSize().y, maxFrame.y);
                 }
                 strcpy_s(buff2, "");
-                ofstream out("chahe.json");
+                ofstream out("./chahe.json");
                 out << std::setw(4) << j << std::endl;
                 ++groupCount;
                 out.close();
@@ -458,15 +475,17 @@ void CAE::Application::createAssets()
                 defaultInfo["texturePath"] = defaultInfo.at("name").get<std::string>() + ".png";
             } else
             {
+
                 json _f;
-                ifstream i("chahe.json");
+                ifstream i("../chahe.json");
                 i >> _f;
                 defaultInfo["texturePath"] = _f["AssetCreate"];
                 i.close();
             }
         } else
             defaultInfo["texturePath"] = buff2;
-
+        j.clear();
+        groupCount = 0;
         o << std::setw(4) << _out << std::endl;
         o.close();
         clearBuffers();
@@ -494,32 +513,19 @@ void CAE::Application::editor()
         {
             if(tools_container.current_if(tool_type::MAGICTOOL))
             {
-                auto mg = tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL);
+                auto mg = tools_container.getTool<MagicTool>(tool_type::MAGICTOOL);
                 static std::string selectedGroup;
-                static bool renameState = false;
                 int id = 0;
-                static int _id = 0;
                 for(auto& group : currAsset->groups)
                 {
                     ImGui::PushID(++id);
-                    if((renameState && _id != id) || !renameState)
+
+                    if(ImGui::Selectable(group->getName().c_str(), selectedGroup == group->getName()))
                     {
-                        if(ImGui::Selectable(group->getName().c_str(), selectedGroup == group->getName()))
-                        {
-                            selectedGroup = group->getName();
-                            mg->setSelectedGroup(group);
-                        }
-                        if(ImGui::IsItemClicked(1))
-                        {
-                            _id = id;
-                            renameState = true;
-                        }
-                    } else if(ImGui::InputText("Rename", buff, 256, ImGuiInputTextFlags_EnterReturnsTrue))
-                    {
-                        group->setName(buff);
-                        strcpy_s(buff, "");
-                        renameState = false;
+                        selectedGroup = group->getName();
+                        mg->setSelectedGroup(group);
                     }
+
                     ImGui::PopID();
                 }
             } else
@@ -567,6 +573,8 @@ void CAE::Application::exit()
 
 void CAE::Application::editorDragDropLogic()
 {
+    static bool renameState = false;
+    static int rename_id = 0;
     static int global_id = 0; //just a local 'name' for part, value used only in make_text
     auto make_text = [](Part& p)->std::string
     {
@@ -600,12 +608,6 @@ void CAE::Application::editorDragDropLogic()
                 auto& groups = currAsset->groups;
                 groups.erase(std::remove_if(groups.begin(), groups.end(), [](auto g)
                 { return g->isSelected(); }), groups.end());
-//                for(auto& i : selectedGroups)
-//                {
-//                    currAsset->groups.erase(currAsset->groups.begin() + (i - _i));
-//                    ++_i;
-//                }
-//                selectedGroups.clear();
             } else //Part erase
             {
                 for(auto& g : *currAsset)
@@ -618,17 +620,6 @@ void CAE::Application::editorDragDropLogic()
                         }), end(g->getParts()));
                     }
                 }
-//                auto& p = currAsset->groups[group_n]->getParts();
-//                selectedParts.emplace(part_n);
-//                int _i = 0;
-//                //for(auto& i : )
-//                for(auto& i : selectedParts)
-//                {
-//                    p.erase(p.begin() + (i - _i));
-//                    ++_i;
-//                }
-//                selectedParts.clear();
-                //p.erase(p.begin() + part_n);
             }
         }
         ImGui::EndDragDropTarget();
@@ -641,8 +632,8 @@ void CAE::Application::editorDragDropLogic()
             auto pos = sf::Vector2f(currAsset->getPosition());
             editorSubArray.emplace_back(
                     std::make_shared<Part>(
-                                    sf::FloatRect(pos.x, pos.y, 20, 20), ++global_id
-                                    ));
+                            sf::FloatRect(pos.x, pos.y, 20, 20), ++global_id
+                    ));
         }
     //////////////////END//////////////////
     if(ImGui::TreeNode("Editor storage"))
@@ -691,137 +682,131 @@ void CAE::Application::editorDragDropLogic()
         ImGuiTreeNodeFlags nd = base_flags;
         if(group->isSelected())
             nd |= ImGuiTreeNodeFlags_::ImGuiTreeNodeFlags_Selected;
-        bool node_open = ImGui::TreeNodeEx((void*) (intptr_t) group_id, nd, "%s", group->getName().c_str());
-        if(ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
+        bool node_open = false;
+        if((renameState && rename_id != group_id) || !renameState)
+            node_open = ImGui::TreeNodeEx((void*) (intptr_t) group_id, nd, "%s", group->getName().c_str());
+        if(ImGui::IsItemClicked(1))
         {
-            if(group->setSelected(!group->isSelected()))
-                selectedGroups.emplace(group_id);
-            else
-                selectedGroups.erase(group_id);
+            rename_id = group_id;
+            renameState = true;
+            strcpy_s(buff2, group->getName().c_str());
         }
-        if(node_open)
+        if(!renameState)
         {
-            //////////////////Drag&Drop group(State: TreeNode open)//////////////////
-            if(ImGui::BeginDragDropTarget())
+            if(ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
             {
-                if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
-                {
-                    //IM_ASSERT(payload->DataSize == sizeof(int));
-                    const char* payload_n = (const char*) payload->Data;
-                    auto[group_n, part_n] = parse_data(std::string(payload_n));
-                    if(group_n == -1)
-                    {
-                        group->getParts().push_back(editorSubArray[part_n]);
-                        editorSubArray.erase(editorSubArray.begin() + part_n);
-                    } else
-                    {
-                        auto& g = currAsset->groups[group_n];
-                        auto& p = currAsset->groups[group_n]->getParts();
-
-                        selectedParts.emplace(part_n);
-
-                        for(auto& i : selectedParts)
-                        {
-                            group->getParts().push_back(p[i]);
-                        }
-                        int _i = 0;
-                        for(auto& i : selectedParts)
-                        {
-
-                            g->getParts().erase(g->getParts().begin() + (i - _i));
-                            ++_i;
-                        }
-                        //group->getParts().push_back(p[part_n]);
-                        //g->getParts().erase(g->getParts().begin() + part_n);
-                    }
-                }
-                ImGui::EndDragDropTarget();
+                if(group->setSelected(!group->isSelected()))
+                    selectedGroups.emplace(group_id);
+                else
+                    selectedGroups.erase(group_id);
             }
-
-            //////////////////END//////////////////
-            static int prsId = 0;
-            if(ImGui::ImageButton(ico_holder.getTexture(ico_t::Magic), {32, 32}))
+            if(node_open)
             {
-                selectArea = true;
-                prsId = group_id;
-            } else
-            {
-                if(selectArea && prsId == group_id)
+                //////////////////Drag&Drop group(State: TreeNode open)//////////////////
+                if(ImGui::BeginDragDropTarget())
                 {
-                    static sf::IntRect rect;
-                    static bool once = false;
-                    if(sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
+                    if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
                     {
-                        if(!once)
+                        //IM_ASSERT(payload->DataSize == sizeof(int));
+                        const char* payload_n = (const char*) payload->Data;
+                        auto[group_n, part_n] = parse_data(std::string(payload_n));
+                        if(group_n == -1)
                         {
-                            once = true;
-                            auto pos = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
-                            rect.left = pos.x;
-                            rect.top = pos.y;
+                            group->getParts().push_back(editorSubArray[part_n]);
+                            editorSubArray.erase(editorSubArray.begin() + part_n);
                         } else
                         {
-                            sf::Vector2f p = window->mapPixelToCoords(sf::Mouse::getPosition(*window), view);
-                            auto delta = p - shape.getPosition();
-                            rect.width = delta.x;
-                            rect.height = delta.y;
+                            auto& g = currAsset->groups[group_n];
+                            auto& p = currAsset->groups[group_n]->getParts();
+
+                            selectedParts.emplace(part_n);
+
+                            for(auto& i : selectedParts)
+                            {
+                                group->getParts().push_back(p[i]);
+                            }
+                            int _i = 0;
+                            for(auto& i : selectedParts)
+                            {
+
+                                g->getParts().erase(g->getParts().begin() + (i - _i));
+                                ++_i;
+                            }
+                            //group->getParts().push_back(p[part_n]);
+                            //g->getParts().erase(g->getParts().begin() + part_n);
                         }
-                        shape.setPosition(sf::Vector2f(rect.left, rect.top));
-                        shape.setSize(sf::Vector2f(rect.width, rect.height));
-                    } else if(once)
-                    {
-                        std::string s =
-                                std::to_string(rect.width) + " _ " + std::to_string(rect.height) + " | " + std::to_string(rect.left) +
-                                " _ " + std::to_string(rect.top);
-                        Console::AppLog::addLog(s, Console::info);
-                        //magicTool.cropSrc(rect, true);
-                        /*for (auto& r : magicTool.makeBounds())
-                            group->getParts().emplace_back(std::make_shared<Part>(r, ++global_id));*/
-                        Console::AppLog::addLog(std::to_string(group_id) + group->getName(), Console::info);
-                        selectArea = false;
-                        once = false;
-                        rect = {};
-                        shape.setPosition(sf::Vector2f(0, 0));
-                        shape.setSize(sf::Vector2f(0, 0));
                     }
+                    ImGui::EndDragDropTarget();
                 }
-            }
+                /////////////////////////////////////////////END/////////////////////////////////////////////////////////
+                bool isVisible = group->isVisible();
+                ImGui::Checkbox("isVisible", &isVisible);
+                group->setVisible(isVisible);
 
-            bool isVisible = group->isVisible();
-            ImGui::Checkbox("isVisible", &isVisible);
-            group->setVisible(isVisible);
-
-            int part_id = 0;
-            bool one_of = false;
-            for(auto iter = group->getParts().begin(); iter != group->getParts().end(); ++iter)
-            {
-                ImGui::PushID(part_id);
-                auto& part = *iter;
-                auto r = part->getRect();
-                ImGui::Selectable(make_text(*part).c_str(), part->isSelected());
-
-                if(ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
+                int part_id = 0;
+                bool one_of = false;
+                for(auto iter = group->getParts().begin(); iter != group->getParts().end(); ++iter)
                 {
-                    //Console::AppLog::addLog("Part", Console::info);
-                    //part->setSelected(!part->isSelected());
-                    if(part->setSelected(!part->isSelected()))
-                    {
-                        group->setSelected(true);
-                        selectedParts.emplace(part_id);
-                    } else
-                    {
-                        selectedParts.erase(part_id);
-                    }
+                    ImGui::PushID(part_id);
+                    auto& part = *iter;
+                    auto r = part->getRect();
+                    ImGui::Selectable(make_text(*part).c_str(), part->isSelected());
 
+                    if(ImGui::IsItemClicked() && ImGui::GetIO().KeyCtrl)
+                    {
+                        //Console::AppLog::addLog("Part", Console::info);
+                        //part->setSelected(!part->isSelected());
+                        if(part->setSelected(!part->isSelected()))
+                        {
+                            group->setSelected(true);
+                            selectedParts.emplace(part_id);
+                        } else
+                        {
+                            selectedParts.erase(part_id);
+                        }
+                    }
+                    if(part->isSelected())
+                        one_of = true;
+                    //////////////////Drag&Drop parts//////////////////
+                    if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+                    {
+                        std::string str = std::to_string(group_id) + ":" + std::to_string(part_id);
+                        const char* s = str.c_str();
+                        ImGui::SetDragDropPayload("DAD", s, sizeof(s));
+                        ImGui::Text("Swap %s", make_text(*part).c_str());
+                        ImGui::EndDragDropSource();
+                    }
+                    if(ImGui::BeginDragDropTarget())
+                    {
+                        if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
+                        {
+                            //IM_ASSERT(payload->DataSize == sizeof(int));
+                            const char* payload_n = (const char*) payload->Data;
+                            auto[group_id, part_id] = parse_data(std::string(payload_n));
+                            if(group_id == -1)
+                                std::swap(*(editorSubArray.begin() + part_id), *iter);
+                            else
+                                std::swap(*(currAsset->groups[group_id]->getParts().begin() + part_id), *iter);
+                        }
+                        ImGui::EndDragDropTarget();
+                    }
+                    //////////////////END//////////////////
+                    ImGui::PopID();
+                    ++part_id;
                 }
-                if(part->isSelected())
-                    one_of = true;
-                //////////////////Drag&Drop parts//////////////////
+                if(!one_of)
+                    group->setSelected(false);
+                ImGui::TreePop();
+            } else
+            {
+                //////////////////Drag&Drop group(State: TreeNode closed)//////////////////
                 if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
                 {
-                    std::string str = std::to_string(group_id) + ":" + std::to_string(part_id);
+                    std::string str = std::to_string(-2) + ":" + std::to_string(group_id);
+                    group->setSelected(true);
                     const char* s = str.c_str();
-                    ImGui::SetDragDropPayload("DAD", s, sizeof(s));
-                    ImGui::Text("Swap %s", make_text(*part).c_str());
+                    ImGui::SetDragDropPayload("DAD", s, sizeof(int));
+                    ImGui::Text("Swap %s", "node");
                     ImGui::EndDragDropSource();
                 }
                 if(ImGui::BeginDragDropTarget())
@@ -830,67 +815,43 @@ void CAE::Application::editorDragDropLogic()
                     {
                         //IM_ASSERT(payload->DataSize == sizeof(int));
                         const char* payload_n = (const char*) payload->Data;
-                        auto[group_id, part_id] = parse_data(std::string(payload_n));
-                        if(group_id == -1)
-                            std::swap(*(editorSubArray.begin() + part_id), *iter);
-                        else
-                            std::swap(*(currAsset->groups[group_id]->getParts().begin() + part_id), *iter);
+                        auto[group_n, part_n] = parse_data(std::string(payload_n));
+                        if(group_n == -1)
+                        {
+                            group->getParts().push_back(editorSubArray[part_n]);
+                            editorSubArray.erase(editorSubArray.begin() + part_n);
+                        } else
+                        {
+                            auto& g = currAsset->groups[group_n];
+                            auto& p = currAsset->groups[group_n]->getParts();
+
+                            selectedParts.emplace(part_n);
+
+                            for(auto& i : selectedParts)
+                            {
+                                group->getParts().push_back(p[i]);
+                            }
+                            int _i = 0;
+                            for(auto& i : selectedParts)
+                            {
+
+                                g->getParts().erase(g->getParts().begin() + (i - _i));
+                                ++_i;
+                            }
+                        }
                     }
                     ImGui::EndDragDropTarget();
                 }
                 //////////////////END//////////////////
-                ImGui::PopID();
-                ++part_id;
             }
-            if(!one_of)
-                group->setSelected(false);
-            ImGui::TreePop();
-        } else
+        } else if(renameState && rename_id == group_id)
         {
-            //////////////////Drag&Drop group(State: TreeNode closed)//////////////////
-            if(ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+            if(ImGui::InputText("Rename", buff2, 256, ImGuiInputTextFlags_EnterReturnsTrue))
             {
-                std::string str = std::to_string(-2) + ":" + std::to_string(group_id);
-                group->setSelected(true);
-                const char* s = str.c_str();
-                ImGui::SetDragDropPayload("DAD", s, sizeof(int));
-                ImGui::Text("Swap %s", "node");
-                ImGui::EndDragDropSource();
+                group->setName(buff2);
+                strcpy_s(buff2, "");
+                renameState = false;
             }
-            if(ImGui::BeginDragDropTarget())
-            {
-                if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
-                {
-                    //IM_ASSERT(payload->DataSize == sizeof(int));
-                    const char* payload_n = (const char*) payload->Data;
-                    auto[group_n, part_n] = parse_data(std::string(payload_n));
-                    if(group_n == -1)
-                    {
-                        group->getParts().push_back(editorSubArray[part_n]);
-                        editorSubArray.erase(editorSubArray.begin() + part_n);
-                    } else
-                    {
-                        auto& g = currAsset->groups[group_n];
-                        auto& p = currAsset->groups[group_n]->getParts();
-
-                        selectedParts.emplace(part_n);
-
-                        for(auto& i : selectedParts)
-                        {
-                            group->getParts().push_back(p[i]);
-                        }
-                        int _i = 0;
-                        for(auto& i : selectedParts)
-                        {
-
-                            g->getParts().erase(g->getParts().begin() + (i - _i));
-                            ++_i;
-                        }
-                    }
-                }
-                ImGui::EndDragDropTarget();
-            }
-            //////////////////END//////////////////
         }
         ImGui::PopID();
         ++group_id;
@@ -910,7 +871,7 @@ void CAE::Application::viewLoadedAssets()
     ImGui::BeginChild("Loaded assets");
     ImGui::Text("Loaded assets: ");
     if(animAssets.empty())
-        ImGui::Text("nothing");
+        ImGui::Text("Nothing.");
     else
     {
         ImGui::Separator();
@@ -920,23 +881,23 @@ void CAE::Application::viewLoadedAssets()
             bool erase = false;
             if(ImGui::TreeNode(a->getName().c_str()))
             {
-                ImGui::Image(*a, {200.f, 200.f});
+                sf::Vector2f size = (sf::Vector2f) a->getTexture()->getSize();
+                ImGui::BeginChild("Image", {window->getSize().x / 3.f, 300.f}, false,
+                                  ImGuiWindowFlags_NoResize | ImGuiWindowFlags_HorizontalScrollbar);
+                ImGui::Image(*a, size);
+                ImGui::EndChild();
                 ImGui::Spacing();
                 ImGui::Text("Info: ");
-                sf::Vector2f size = (sf::Vector2f) a->getTexture()->getSize();
                 auto WH = a->getWH();
                 ImGui::Text("Texture Size: %.2f %.2f", size.x, size.y);
                 ImGui::Text("Texture Path: %s", a->getPath().c_str());
-                ImGui::Text("step on the axis Width: %i Height: %i", WH.first, WH.second);
+                ImGui::Text("Step on the axis Width: %i Height: %i", WH.first, WH.second);
                 if(ImGui::Button("select as current"))
                     currAsset = a;
                 if(ImGui::Button("free"))
                     erase = true;
-
                 if(a->is_array && ImGui::Button("Store frames as group"))
-                {
                     a->convertFrame2Group();
-                }
                 ImGui::TreePop();
             }
             ImGui::Separator();
@@ -1053,11 +1014,13 @@ void CAE::Application::addEventsHandler()
     EventManager& eManager = eventManagers.addEM("MainManager");
     eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
     eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
-    //eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Delete), &Application::deletSelectedPart_e, this);
+    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F3), [this](sf::Event&)
+    {
+        this->creatorMode = !this->creatorMode;
+        Console::AppLog::addLog(std::string("Change mode: ") + (this->creatorMode ? "true" : "false"), Console::message);
+    });
     eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::Tilde), [this](sf::Event&)
     { LogConsole = !LogConsole; });
-//    eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&)
-//    { pointSelected = false; });
 }
 
 CAE::Application::Application(sf::RenderWindow& w)
@@ -1088,12 +1051,14 @@ void CAE::Application::loadState()
         try
         {
             auto& appSettings = j.at("Application Settings");
-            std::string p = appSettings.at("currentAsset").get<std::string>();
+            if(appSettings.find("currentAsset") != appSettings.end())
+            {
+                std::string p = appSettings.at("currentAsset").get<std::string>();
+                loadAsset(p, true);
+            }
             useMouse = appSettings.at("useMouse").get<bool>();
             creatorMode = appSettings.at("creatorMode").get<bool>();
-            //magicTool.load4Json(j.at("MagicTool Settings"));
-            if(p != "Null")
-                loadAsset(p, true);
+            tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->load4Json(j.at("MagicTool Settings"));
         }
         catch (json::exception& e)
         {
@@ -1111,16 +1076,16 @@ void CAE::Application::loadState()
 void CAE::Application::saveState()
 {
     ofstream open("config.json");
+    json j;
+    auto& applicationMain = j["Application Settings"];
     if(currAsset != nullptr)
     {
-        json j;
-        auto& applicationMain = j["Application Settings"];
         applicationMain["currentAsset"] = currAsset->assetPath;
-        applicationMain["useMouse"] = useMouse;
-        applicationMain["creatorMode"] = creatorMode;
-        //j["MagicTool Settings"] = magicTool.save2Json();
-        open << std::setw(4) << j;
     }
+    applicationMain["useMouse"] = useMouse;
+    applicationMain["creatorMode"] = creatorMode;
+    j["MagicTool Settings"] = tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->save2Json();
+    open << std::setw(4) << j;
     open.close();
 }
 
@@ -1130,16 +1095,14 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
     {
         auto task = [this, setAsCurr](std::string copyBuffer)
         {
-
             sf::Context _;
             auto ptr = std::make_shared<CAE::AnimationAsset>(copyBuffer);
             if(ptr->loadFromFile())
             {
-                auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
-                {
-                    return ptr->getName() == val->getName();
-                });
-                if(it != animAssets.end())
+                if(auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
+                    {
+                        return ptr->getName() == val->getName();
+                    }); it != animAssets.end())
                 {
                     Console::AppLog::addLog("Assets loaded arleady", Console::message);
                     //delete ptr;
@@ -1149,9 +1112,6 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
                 {
                     currAsset = *animAssets.begin();
                     assetChanged = true;
-
-                    //magicTool.setImage(*currAsset->getTexture());
-                    //magicTool.makeTransformImage();
                 }
             }
             //else
@@ -1178,96 +1138,9 @@ void CAE::Application::useMouseToMove_e(sf::Event&)
     Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::message);
 }
 
-//void CAE::Application::deletSelectedPart_e(sf::Event&)
-//{
-//    if(selectedGroup != nullptr && currAsset != nullptr && lastSelected != nullptr)
-//    {
-//        auto& ar = selectedGroup->getParts();
-//        ar.erase(std::find_if(ar.begin(), ar.end(), [this](std::shared_ptr<Part> p)
-//        { return lastSelected.get() == p.get(); }));
-//        lastSelected.reset();
-//    }
-//}
-//
-//void CAE::Application::viewScale_e(sf::Event& event)
-//{
-//    if(!toolsWindowFocused)
-//    {
-//        //auto Nview = view.getSize();
-//        scaleView = view.getSize();
-//        if(event.mouseWheelScroll.delta < 0)
-//        {
-//            scaleView.x *= scaleFactor;
-//            scaleView.y *= scaleFactor;
-//            unscaleView.x /= scaleFactor;
-//            unscaleView.y /= scaleFactor;
-//            nodeSize += 0.3;
-//            scaleSign = 1;
-//        } else
-//        {
-//            scaleView.x /= scaleFactor;
-//            scaleView.y /= scaleFactor;
-//
-//            unscaleView.x *= scaleFactor;
-//            unscaleView.y *= scaleFactor;
-//            nodeSize -= 0.3;
-//            scaleSign = -1;
-//        }
-//
-//        //if (asyncNodeScale.joinable())
-//        //	asyncNodeScale.join();
-//
-//        //asyncNodeScale = std::thread(
-//        //	[this]()
-//        //	{
-//        //		if (currAsset != nullptr)
-//        //		{
-//        //			for (auto group : *currAsset) //yep, one day it may fall
-//        //				for (auto part : *group) //yep, one day it may fall
-//        //					for (auto& node : part->getNode()) //yep, one day it may fall
-//        //						node.updateRadius(nodeSize); //yep, one day it may fall
-//        //		}
-//        //	});
-//
-//        view.setSize(scaleView);
-//        viewUpdated();
-//    }
-//}
-
 void CAE::Application::magicSelection()
 {
-    tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL)->settingWindow();
-    /*ImGui::BeginChild("Magic Selection Settings");
-    ImGui::SliderInt("Type of transformation", &magicTool.mode, 0, 2);
-    ImGui::Checkbox("user morph", &magicTool.useMorph);
-    ImGui::Checkbox("user gray", &magicTool.gray);
-    ImGui::SliderInt("thresh", &magicTool.thresh, 0, 255);
-    ImGui::Checkbox("Just make the opaque color black", &magicTool.makeAllBlack);
-    ImGui::SliderInt("Color add value", &magicTool.add, -255, 255);
-    if (magicTool.useMorph)
-    {
-        ImGui::SliderInt("morphIteration", &magicTool.morph_iteration, -10, 10);
-        ImGui::SliderInt("Rect w", &magicTool.kernel_rect.x, 0, 255);
-        ImGui::SliderInt("Rect g", &magicTool.kernel_rect.y, 0, 255);
-    }
-    ImGui::Text("offset");
-    ImGui::InputInt("left", &magicTool.offset.left);
-    ImGui::InputInt("top", &magicTool.offset.top);
-    ImGui::InputInt("rigt", &magicTool.offset.width);
-    ImGui::InputInt("bottom", &magicTool.offset.height);
-    if (ImGui::Button("Processed Image"))
-        tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL)->makeTransformImage();
-    if (ImGui::Button("Get Rects"))
-    {
-        tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL)->makeBounds();
-        cv::imshow("th3", tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL)->getTransformImage());
-    }
-    static sf::Texture texture;
-    static sf::Sprite sprite;
-    texture.loadFromImage(tools_container.getTool<_MagicTool>(tool_type::MAGICTOOL)->getTransformPreview());
-    sprite.setTexture(texture, true);
-    ImGui::Image(sprite);
-    ImGui::EndChild();*/
+    tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->settingWindow();
 }
 
 void CAE::Application::showLog(std::string_view txt)
@@ -1295,35 +1168,62 @@ void CAE::Application::viewUpdated()
 
 void CAE::Application::start()
 {
+    sf::Clock clock;
+    sf::Time previousTime = clock.getElapsedTime();
+    sf::Time currentTime;
+
     while(window->isOpen())
     {
-        auto timePoint1(chrono::high_resolution_clock::now());
         sf::Event event;
         handleEvent(event);
-        currentSlice += lastFt;
         ImGui::SFML::Update(*window, deltaClock.restart());
+
         ImGuiWindowFlags window_flags = 0;
         window_flags |= ImGuiWindowFlags_MenuBar;
         window_flags |= ImGuiWindowFlags_NoMove;
         window_flags |= ImGuiWindowFlags_NoResize;
+        window_flags |= ImGuiWindowFlags_NoDecoration;
         window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
         auto io = ImGui::GetIO();
-        ImVec2 window_pos = ImVec2(io.DisplaySize.x - 1.f, 1.f);
-        ImVec2 window_pos_pivot = ImVec2(1.0f, 0.0f);
-        ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
         ImGui::SetNextWindowSize(ImVec2(window->getSize().x / 3, window->getSize().y - 1.f));
-
-        if(!ImGui::Begin("Tools Window", NULL, window_flags))
-            ImGui::End();
-        else
+        ImGui::SetNextWindowBgAlpha(bg_alpha / 10.f);
+        if(corner != -1)
         {
+            float DISTANCE = .2f;
+            window_flags |= ImGuiWindowFlags_NoMove;
+            ImVec2 window_pos = ImVec2((corner & 1) ? io.DisplaySize.x - DISTANCE : DISTANCE,
+                                       (corner & 2) ? io.DisplaySize.y - DISTANCE : DISTANCE);
+            ImVec2 window_pos_pivot = ImVec2((corner & 1) ? 1.0f : 0.0f, (corner & 2) ? 1.0f : 0.0f);
+            ImGui::SetNextWindowPos(window_pos, ImGuiCond_Always, window_pos_pivot);
+        }
+        if(ImGui::Begin("Tools Window", NULL, window_flags))
+        {
+            if(ImGui::BeginPopupContextWindow())
+            {
+                if(ImGui::MenuItem("Left", NULL, corner == 0))
+                {
+                    corner = 0;
+                    tools_container.setCorner(1);
+                }
+                if(ImGui::MenuItem("Right", NULL, corner == 1))
+                {
+                    corner = 1;
+                    tools_container.setCorner(0);
+                }
+                ImGui::DragInt("Alpha", &bg_alpha, 1, 0, 10);
+                ImGui::EndPopup();
+            }
             drawUI();
             toolsWindowFocused = ImGui::IsAnyWindowHovered();
             ImGui::End();
         }
-
+        currentTime = clock.getElapsedTime();
+        fps = 1.0f / (currentTime.asSeconds() - previousTime.asSeconds()); // the asSeconds returns a float
+        previousTime = currentTime;
+        //ImGui::ShowDemoWindow();
 #ifdef DEBUG
         ImGui::Begin("Debug", 0, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::Text("fps: %.2f", fps);
         ImGui::Text("Mouse pos x: %f, y: %f", eventManagers.currMousePos().x, eventManagers.currMousePos().y);
         //ImGui::Text("Mouse delta x: %f", eManager.worldMouseDelta());
         ImGui::Separator();
@@ -1342,12 +1242,7 @@ void CAE::Application::start()
         ImGui::Text("buff3: %s", this->buff3);
         ImGui::End();
 #endif // DEBUG
-
         update();
         draw();
-        auto timePoint2(chrono::high_resolution_clock::now());
-        auto elapsedTime(timePoint2 - timePoint1);
-        float ft{chrono::duration_cast<chrono::duration<float, milli>>(elapsedTime).count()};
-        lastFt = ft;
     }
 }

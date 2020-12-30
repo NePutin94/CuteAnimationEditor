@@ -38,7 +38,7 @@ bool ImGui::SelectableImage(const sf::Texture& texture, bool selected, const ImV
 {
     int frame_padding = 1;
     //ImGui::Selectable
-    ImVec4 bg_col = sf::Color::Black;
+    ImVec4 bg_col = sf::Color::Transparent;
     ImVec4 tint_col = sf::Color::Red;
 
     sf::Vector2f textureSize = static_cast<sf::Vector2f>(texture.getSize());

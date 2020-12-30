@@ -82,7 +82,11 @@ bool CAE::AnimationAsset::loadFromFile()
             {
                 is_array = false;
                 texturePath = info.at("texturePath").get<std::string>();
-                texture.loadFromFile(texturePath);
+                if(!texture.loadFromFile(texturePath))
+                {
+                    Console::AppLog::addLog("Can't load texture", Console::error);
+                    return false;
+                }
                 setTexture(texture);
             }
             for(auto& group : j.at("Groups"))
@@ -94,7 +98,7 @@ bool CAE::AnimationAsset::loadFromFile()
         }
         catch (json::exception& e)
         {
-            Console::AppLog::addLog("Json throw exception, message: " +  std::string(e.what()), Console::error);
+            Console::AppLog::addLog("Json throw exception, message: " + std::string(e.what()), Console::error);
         }
     }
     return false;
@@ -108,7 +112,22 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
     json j;
     auto& info = j["defaultInfo"];
     info["name"] = name;
-    info["texturePath"] = texturePath;
+    if(is_array)
+    {
+        info["texturePath"] = json::array();
+        for(auto& p : t_data)
+        {
+            json j;
+            j["PathsToTexture"] = p.second.path;
+            j["Textures"] = json::array();
+            for(auto& pp : p.second.files)
+            {
+                j["Textures"].emplace_back(pp);
+            }
+            info["texturePath"].emplace_back(j);
+        }
+    } else
+        info["texturePath"] = texturePath;
 
     int i = 0;
     auto& g = j["Groups"];

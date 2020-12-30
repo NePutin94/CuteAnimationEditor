@@ -4,35 +4,6 @@
 
 namespace CAE
 {
-    class IAnimaJson
-    {
-        json j;
-    public:
-        IAnimaJson(json j) : j(j)
-        {
-
-        }
-
-        IAnimaJson(IAnimaJson&& b) : j(std::move(b.j))
-        {}
-
-        IAnimaJson setName(std::string_view name)
-        {
-            j["defaultInfo"]["name"] = name;
-            return std::move(*this);
-        }
-
-        IAnimaJson setTexture(std::string_view tex)
-        {
-            j["defaultInfo"]["texture"] = tex;
-            return std::move(*this);
-        }
-
-        json get()
-        { return j; }
-    };
-
-
     class AnimationAsset : public sf::Sprite
     {
     private:
@@ -48,7 +19,6 @@ namespace CAE
             size_t FrameCount;
             sf::Vector2u TextureSize;
             sf::Vector2u FrameSize;
-
         } draw_data;
         bool is_array = false;
         std::map<int, Textures> t_data;
@@ -99,7 +69,7 @@ namespace CAE
             auto& info = j["defaultInfo"];
             info["name"] = "";
             info["texturePath"] = "";
-            j["Group"] = json::array();
+            j["Groups"] = json::array();
             return j;
         }
 
@@ -127,6 +97,34 @@ namespace CAE
             }
         }
 
+        void iterateByPart_s(std::function<void(Part&)> func)
+        {
+            for(auto& g : groups)
+            {
+                if(g->isVisible() && g->isSelected())
+                {
+                    for(auto& part : *g)
+                    {
+                        if(part->isSelected())
+                            func(*part);
+                    }
+                }
+            }
+        }
+        void iterateByPart_us(std::function<void(Part&)> func)
+        {
+            for(auto& g : groups)
+            {
+                if(g->isVisible() && !g->isSelected())
+                {
+                    for(auto& part : *g)
+                    {
+                        if(!part->isSelected())
+                            func(*part);
+                    }
+                }
+            }
+        }
         friend class Application;
     };
 }

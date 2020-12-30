@@ -22,7 +22,7 @@ CAE::Part::Part(sf::FloatRect _rect) : box(_rect),  quad(sf::LinesStrip, 5), col
 	node[2] = ScaleNode({ x + w / 2,y + h }, 2);
 	node[3] = ScaleNode({ x, y + h / 2 }, 3);
 	update();
-	changeColor(sf::Color::Red);
+	setSelected(false);
 }
 
 CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect),  quad(sf::LinesStrip, 5), color(sf::Color::Transparent), IsSelected(false)
@@ -33,7 +33,7 @@ CAE::Part::Part(sf::FloatRect _rect, int id) : id(id), box(_rect),  quad(sf::Lin
 	node[2] = ScaleNode({ x + w / 2,y + h }, 2);
 	node[3] = ScaleNode({ x, y + h / 2 }, 3);
 	update();
-	changeColor(sf::Color::Red);
+    setSelected(false);
 }
 
 void CAE::Part::changeColor(sf::Color c)

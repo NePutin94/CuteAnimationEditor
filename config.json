@@ -1,0 +1,22 @@
+{
+    "Application Settings": {
+        "creatorMode": true,
+        "currentAsset": "D:\\!VisualStudioProject\\CuteAnimationEditor\\CuteAnimationEditor\\assets\\bad.json",
+        "useMouse": false
+    },
+    "MagicTool Settings": {
+        "Add": 0,
+        "Mode": 0,
+        "Morph Settings": {
+            "CountIteration": 0,
+            "Kernel Rect": {
+                "X": 0,
+                "Y": 0
+            }
+        },
+        "Thresh": 0,
+        "UseAllBlack": false,
+        "UseGrayScale": true,
+        "UseMorph": false
+    }
+}
