@@ -71,7 +71,7 @@ namespace CAE
         char buff2[2048]{};
         char buff3[256]{};
         bool LogConsole;
-        bool useMouse;
+        //bool useMouse;
         bool creatorMode;
         bool toolsWindowFocused;
         //bool pointSelected;
@@ -95,11 +95,7 @@ namespace CAE
 
         void changeMovingMode_e(sf::Event&);
 
-        void useMouseToMove_e(sf::Event&);
-
-        [[deprecated]] void deletSelectedPart_e(sf::Event&);
-
-        [[deprecated]] void viewScale_e(sf::Event& event);
+        void setTheme();
 
         void magicSelection();
 
@@ -138,8 +134,7 @@ namespace CAE
     public:
         Application(sf::RenderWindow& w);
 
-        ~Application()
-        {}
+        ~Application() = default;
 
         void start();
 

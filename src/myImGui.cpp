@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cstring>
 #include "../include/IcoHolder.h"
+#include "../include/AppColors.h"
 #include <regex>
 #include "../include/myImGui.h"
 
@@ -39,7 +40,7 @@ bool ImGui::SelectableImage(const sf::Texture& texture, bool selected, const ImV
     int frame_padding = 1;
     //ImGui::Selectable
     ImVec4 bg_col = sf::Color::Transparent;
-    ImVec4 tint_col = sf::Color::Red;
+    ImVec4 tint_col = CAE::Colors::Tool_us;
 
     sf::Vector2f textureSize = static_cast<sf::Vector2f>(texture.getSize());
     sf::FloatRect textureRect = {0, 0, textureSize.x, textureSize.y};
@@ -76,10 +77,10 @@ bool ImGui::SelectableImage(const sf::Texture& texture, bool selected, const ImV
     {
         //RenderNavHighlight(bb, id);
         //RenderFrame(bb.Min, bb.Max, col, true, ImClamp((float)ImMin(padding.x, padding.y), 0.0f, g.Style.FrameRounding));
-        tint_col = sf::Color::White;
+        tint_col =  CAE::Colors::Tool_s;
     }
     if(hovered)
-        tint_col = sf::Color::Green;
+        tint_col = CAE::Colors::Tool_h;
 
     if(bg_col.w > 0.0f)
         window->DrawList->AddRectFilled(bb.Min + padding, bb.Max - padding, GetColorU32(bg_col));

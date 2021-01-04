@@ -2,7 +2,7 @@
 - ### How can I use it?
 	- #### Hotkeys
 		>**F1** - to change the mode of movement of the rectangles: in-game coordinates or pixels
-		>**F3** - Switch to Edit mode
+		>**F2** - Switch to Edit mode
 		>**Mouse wheel** - zooming the camera (only when ```move pen``` is selected)
 		>Switching tools:
 			**1** - move pen
@@ -19,7 +19,7 @@
 		3. *Animation Groups* - here you can divide animations into groups by their type and purpose(walk, run, idle, etc.)
 		#### Tabs:
 		- Load Asset
-			Just enter the file name (template: *.json), the asset will be loaded and will be available in the [Loaded Assets](#loaded-assets) tab
+			Just enter the file name (*.json), the asset will be loaded and will be available in the [Loaded Assets](#loaded-assets) tab
 		
 		- New
 			Creates an asset.

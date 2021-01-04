@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Tool.h"
+#include "AppColors.h"
 #include <vector>
 #include <SFML/Graphics.hpp>
 #include <imgui-SFML.h>
@@ -62,7 +63,7 @@ namespace CAE
                                                                                                             transp_color()
         {
             shape.setFillColor(sf::Color::Transparent);
-            shape.setOutlineColor(sf::Color::Blue);
+            shape.setOutlineColor(CAE::Colors::OutLine_r);
             shape.setOutlineThickness(1);
         }
 

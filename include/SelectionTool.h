@@ -2,7 +2,7 @@
 
 #include "Tool.h"
 #include "AnimationAsset.h"
-
+#include "AppColors.h"
 namespace CAE
 {
     class SelectionTool : public Tool
@@ -78,7 +78,7 @@ namespace CAE
         SelectionTool(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window) : Tool(m, t, window), Selection(false)
         {
             shape.setFillColor(sf::Color::Transparent);
-            shape.setOutlineColor(sf::Color::Blue);
+            shape.setOutlineColor(CAE::Colors::OutLine_r);
             shape.setOutlineThickness(1);
         }
 

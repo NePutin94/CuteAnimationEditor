@@ -10,9 +10,9 @@ void CAE::Tools::toolsPanel()
     for(auto tool = tools.begin(); tool != tools.end(); ++tool)
     {
         auto&[f, s] = *tool;
-        ImGui::SetNextWindowBgAlpha(0);
+        ImGui::SetNextWindowBgAlpha(0.7f);
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize;
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 3.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(7,8));
         if(corner != -1)
         {
@@ -46,8 +46,7 @@ CAE::Tools::Tools(Application* app, sf::RenderWindow* w) : e(app->eventManagers)
     tools[tool_type::MOVEPART] = std::make_shared<MovePen>(app->eventManagers, app->ico_holder.getTexture(ico_t::Move), *w, app->useFloat);
     tools[tool_type::MAGICTOOL] = std::make_shared<MagicTool>(app->eventManagers, app->ico_holder.getTexture(ico_t::Magic), *w,
                                                               app->useFloat);
-    tools[tool_type::MOVEVIEW] = std::make_shared<MoveView>(app->eventManagers, app->ico_holder.getTexture(ico_t::Hand), *w, app->view,
-                                                            app->useMouse);
+    tools[tool_type::MOVEVIEW] = std::make_shared<MoveView>(app->eventManagers, app->ico_holder.getTexture(ico_t::Hand), *w, app->view);
     tools[tool_type::SELECTION] = std::make_shared<SelectionTool>(app->eventManagers, app->ico_holder.getTexture(ico_t::Selection), *w);
 }
 

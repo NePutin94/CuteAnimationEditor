@@ -9,13 +9,12 @@ namespace CAE
 	{
 	private:
 		sf::View& viewToMove;
-		bool& useMouse;
 		bool keyPress;
 		bool ImGuiDisabled;
 		float zoom = 1;
 		void assetUpdated() override {}
 	public:
-		MoveView(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window, sf::View& v, bool& useMouse) : Tool(m, t, window), viewToMove(v), useMouse(useMouse), keyPress(false){}
+		MoveView(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window, sf::View& v) : Tool(m, t, window), viewToMove(v),  keyPress(false){}
 
 		void Enable() override
 		{

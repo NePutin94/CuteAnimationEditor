@@ -2,6 +2,7 @@
 
 #include <SFML/Graphics.hpp>
 #include "ConsoleLog.h"
+#include "AppColors.h"
 #include <chrono>
 #include <nlohmann/json.hpp>
 #include <fstream>
@@ -20,6 +21,7 @@ namespace CAE
         {
             updateRadius(3);
             setPosition(pos);
+            setFillColor(CAE::Colors::Node);
         }
 
         void updateRadius(float r)
@@ -65,9 +67,9 @@ namespace CAE
 
         bool setSelected(bool s)
         {
-            if(s) changeColor(sf::Color(71, 114, 255, 255));
+            if(s) changeColor(CAE::Colors::Rect_s);
             else
-                changeColor(sf::Color(255, 51, 66, 255));
+                changeColor(CAE::Colors::Rect_us);
             return IsSelected = s;
         }
 

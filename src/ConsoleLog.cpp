@@ -23,8 +23,8 @@ bool CAE::Console::AppLog::hasNewLogByTyp(logType t)
     {
         if(Buffer.back().type == t && prev)
         {
-            offset = Buffer.size() -
-                     1; //Just change the offset value from zero to something else, most likely there is more than one element in the vector
+            offset = Buffer.size() - 1;
+            //Just change the offset value from zero to something else, most likely there is more than one element in the vector
             return true;
         }
     } else
@@ -35,8 +35,8 @@ bool CAE::Console::AppLog::hasNewLogByTyp(logType t)
             { return val.type == t; });
                 it != Buffer.end())
         {
-            offset = std::distance(Buffer.begin(),
-                                   it); //if we find such a log(the first one we find), we calculate offset to it from the beginning of the vector
+            offset = std::distance(Buffer.begin(), it);
+            //if we find such a log(the first one we find), we calculate offset to it from the beginning of the vector
             return true;
         }
     }
@@ -71,7 +71,6 @@ void Console::AppLog::addLog_(std::string s, Console::logType t, ...)
     va_start (args, format);
     int n = vsnprintf(buffer, 1024, format, args);
     std::string str(buffer, n);
-    //std::cout<<str;
     addLog(str, t);
     va_end (args);
 }
@@ -79,22 +78,6 @@ void Console::AppLog::addLog_(std::string s, Console::logType t, ...)
 void CAE::Console::AppLog::addLog(std::string s, logType t)
 {
     addLog(Log(s, t));
-//	std::unique_lock<std::shared_mutex> lock{ globalMutex };
-//	newLog = true;
-//	if (!Buffer.empty())
-//	{
-//		if (Buffer.back().pervText != s)
-//			Buffer.emplace_back(s, t);
-//		else
-//		{
-//			newLog = false;
-//			offset = 0;
-//			//We added a copy of the log, so the next log to output will be exactly at the end of the vector
-//			Buffer.back().count_update(++Buffer.back().log_count);
-//		}
-//	}
-//	else
-//		Buffer.emplace_back(s, t);
 }
 
 void Console::AppLog::saveLog(std::string_view path)
@@ -112,7 +95,7 @@ void CAE::Console::Log::count_update(int count)
 {
     auto b = text.find_first_of(')');
     auto a = text.find_first_of('(');
-   // auto offset = b - a - 1;
+    // auto offset = b - a - 1;
     text.erase(a + 1, b - a - 1);
     text.insert(a + 1, std::to_string(count));
 }
@@ -176,64 +159,37 @@ void Console::AppLog::Draw(const char* title, bool* p_open)
             std::string input = buff_search;
             for(auto item : Buffer)
             {
-                std::string found = "";
-                std::size_t start_pos = -1;
-                start_pos = item.text.find_first_of(" ");
-                for(char i : input)
-                {
-                    std::size_t pos_begin = -1;
-
-                    pos_begin = item.text.find_first_of(i, start_pos);
-                    if(pos_begin != -1)
-                    {
-                        found += item.text.substr(pos_begin, 1);
-                    }
-                }
-                if(found == input)
+                if(item.text.find(input) != std::string::npos)
                 {
                     ImGui::TextColored(item.color, item.text.c_str());
                 }
+//                std::string found = "";
+//                std::size_t start_pos = -1;
+//                start_pos = item.text.find_first_of(" ");
+//                for(char i : input)
+//                {
+//                    std::size_t pos_begin = -1;
+//
+//                    pos_begin = item.text.find_first_of(i, start_pos);
+//                    if(pos_begin != std::string::npos)
+//                    {
+//                        found += item.text.substr(pos_begin, 1);
+//                    }
+//                }
+//                if(found == input)
+//                {
+//                    ImGui::TextColored(item.color, item.text.c_str());
+//                }
             }
         } else if(find && item_current != "all")
         {
             for(auto item : Buffer)
             {
-                ImGui::TextColored(item.color, logType_s[item.type].data());
-
-                /*	if (item_current == "error")
-                    {
-                        if (item.type == logType::error)
-
-                    }
-                    else if (item_current == "info")
-                    {
-                        if (item.type == logType::info)
-                            ImGui::TextColored(item.color, item.text.c_str());
-                    }
-                    else if (item_current == "fatal")
-                    {
-                        if (item.type == logType::fatal)
-                            ImGui::TextColored(item.color, item.text.c_str());
-                    }
-                    else if (item_current == "system")
-                    {
-                        if (item.type == logType::system)
-                            ImGui::TextColored(item.color, item.text.c_str());
-                    }
-                    else if (item_current == "script")
-                    {
-                        if (item.type == logType::script)
-                            ImGui::TextColored(item.color, item.text.c_str());
-                    }
-                    else if (item_current == "message")
-                    {
-                        if (item.type == logType::message)
-                            ImGui::TextColored(item.color, item.text.c_str());
-                    }*/
+                ImGui::TextColored(item.color, "%s", logType_s[item.type].data());
             }
         } else
             for(auto i : Buffer)
-                ImGui::TextColored(i.color, i.text.c_str());
+                ImGui::TextColored(i.color, "%s", i.text.c_str());
         //if (ScrollToBottom)
         ImGui::SetScrollHere(1.f);
         ScrollToBottom = false;

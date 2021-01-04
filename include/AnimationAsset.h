@@ -97,7 +97,7 @@ namespace CAE
             }
         }
 
-        void iterateByPart_s(std::function<void(Part&)> func)
+        void iterateByPart_s1(std::function<void(Part&)> func)
         {
             for(auto& g : groups)
             {
@@ -111,6 +111,22 @@ namespace CAE
                 }
             }
         }
+
+       void iterateByPart_s2(std::function<void(Part&)> func)
+        {
+            for(auto& g : groups)
+            {
+                if(g->isVisible())
+                {
+                    for(auto& part : *g)
+                    {
+                        if(part->isSelected())
+                            func(*part);
+                    }
+                }
+            }
+        }
+
         void iterateByPart_us(std::function<void(Part&)> func)
         {
             for(auto& g : groups)

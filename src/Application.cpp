@@ -316,8 +316,6 @@ void CAE::Application::viewSettings()
         if(ImGui::Button("Update Position"))
             view.setCenter(x, y);
         ImGui::Separator();
-        ImGui::Checkbox("use the mouse to move", &useMouse);
-        ImGui::Separator();
         tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->settingWindow();
         ImGui::TreePop();
     }
@@ -495,6 +493,7 @@ void CAE::Application::createAssets()
 
 void CAE::Application::editor()
 {
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 0.f);
     ImGui::BeginChild("Editor", ImVec2(window->getSize().x / 3, window->getSize().y / 2), true);
     if(currAsset != nullptr)
     {
@@ -539,9 +538,15 @@ void CAE::Application::editor()
             currAsset->groups.emplace_back(std::make_shared<Group>(buff));
             clearBuffers();
         }
+        ImGui::PopStyleVar();
+        ImGui::PushStyleColor(ImGuiCol_ChildBg,ImVec4(0.07f, 0.07f, 0.09f, 1.00f));
         tapWindow();
+        ImGui::PopStyleColor();
     } else
+    {
         ImGui::TextColored(ImVec4(1, 0, 0, 1), "The current asset is not selected");
+        ImGui::PopStyleVar();
+    }
     ImGui::EndChild();
 }
 
@@ -1013,8 +1018,8 @@ void CAE::Application::addEventsHandler()
 {
     EventManager& eManager = eventManagers.addEM("MainManager");
     eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
-    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
-    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F3), [this](sf::Event&)
+    //eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
+    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), [this](sf::Event&)
     {
         this->creatorMode = !this->creatorMode;
         Console::AppLog::addLog(std::string("Change mode: ") + (this->creatorMode ? "true" : "false"), Console::message);
@@ -1027,8 +1032,9 @@ CAE::Application::Application(sf::RenderWindow& w)
         : tools_container(this, &w), state(states::Null), window(&w),
           scaleFactor(1.5f),
           nodeSize(5), scaleSign(0), eventManagers(),
-          useMouse(false), useFloat(true), newMessage(false)
+          useFloat(true), newMessage(false)
 {
+    setTheme();
     addEventsHandler();
     view.setSize(w.getDefaultView().getSize());
     scaleView = unscaleView = view.getSize();
@@ -1056,7 +1062,6 @@ void CAE::Application::loadState()
                 std::string p = appSettings.at("currentAsset").get<std::string>();
                 loadAsset(p, true);
             }
-            useMouse = appSettings.at("useMouse").get<bool>();
             creatorMode = appSettings.at("creatorMode").get<bool>();
             tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->load4Json(j.at("MagicTool Settings"));
         }
@@ -1082,7 +1087,6 @@ void CAE::Application::saveState()
     {
         applicationMain["currentAsset"] = currAsset->assetPath;
     }
-    applicationMain["useMouse"] = useMouse;
     applicationMain["creatorMode"] = creatorMode;
     j["MagicTool Settings"] = tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->save2Json();
     open << std::setw(4) << j;
@@ -1132,12 +1136,6 @@ void CAE::Application::changeMovingMode_e(sf::Event&)
     Console::AppLog::addLog(std::string("Change moving mode, floating: ") + (useFloat ? "true" : "false"), Console::message);
 }
 
-void CAE::Application::useMouseToMove_e(sf::Event&)
-{
-    useMouse = !useMouse;
-    Console::AppLog::addLog(std::string("Using mouse to move: ") + (useMouse ? "true" : "false"), Console::message);
-}
-
 void CAE::Application::magicSelection()
 {
     tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->settingWindow();
@@ -1156,10 +1154,10 @@ void CAE::Application::showLog(std::string_view txt)
     window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus;
     window_flags |= ImGuiWindowFlags_AlwaysAutoResize;
     auto io = ImGui::GetIO();
-    ImVec2 window_pos = ImVec2(1.f, 1.f);
-    ImGui::SetNextWindowPos(window_pos);
     ImGui::Begin("Console Message", 0, window_flags);
     ImGui::Text("%s", txt.data());
+    ImVec2 window_pos = ImVec2(3.f, io.DisplaySize.y - ImGui::GetWindowHeight() - 3.f);
+    ImGui::SetWindowPos(window_pos);
     ImGui::End();
 }
 
@@ -1245,4 +1243,57 @@ void CAE::Application::start()
         update();
         draw();
     }
+}
+
+void CAE::Application::setTheme()
+{
+    ImGuiStyle* style = &ImGui::GetStyle();
+    style->WindowPadding = ImVec2(10, 9);
+    style->WindowRounding = 5.0f;
+    style->FramePadding = ImVec2(3, 5);
+    style->FrameRounding = 1.0f;
+    style->ItemSpacing = ImVec2(10, 8);
+    style->ItemInnerSpacing = ImVec2(8, 6);
+    style->IndentSpacing = 25.0f;
+    style->ScrollbarSize = 12.0f;
+    style->ScrollbarRounding = 9.0f;
+    style->GrabMinSize = 6.0f;
+    style->GrabRounding = 3.0f;
+    style->AntiAliasedLinesUseTex = false;
+
+    style->Colors[ImGuiCol_Text] = ImVec4(0.80f, 0.80f, 0.83f, 1.00f);
+    style->Colors[ImGuiCol_TextDisabled] = ImVec4(0.24f, 0.23f, 0.29f, 1.00f);
+    style->Colors[ImGuiCol_WindowBg] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_PopupBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);
+    style->Colors[ImGuiCol_Border] = ImVec4(0.80f, 0.80f, 0.83f, 0.88f);
+    style->Colors[ImGuiCol_BorderShadow] = ImVec4(0.92f, 0.91f, 0.88f, 0.00f);
+    style->Colors[ImGuiCol_FrameBg] = ImVec4(0.117f, 0.098f, 0.152f, 1.00f);
+    style->Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.215f, 0.192f, 0.337f, 1.00f);
+    style->Colors[ImGuiCol_FrameBgActive] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_TitleBg] = ImVec4(0.117f, 0.074f, 0.207f, 1.00f);
+    style->Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.117f, 0.074f, 0.207f, 1.00f);
+    style->Colors[ImGuiCol_TitleBgActive] = ImVec4(0.127f, 0.08f, 0.3f, 1.00f);
+    style->Colors[ImGuiCol_MenuBarBg] = ImVec4(0.211f, 0.133f, 0.368f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
+    style->Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.56f, 0.56f, 0.58f, 1.00f);
+    style->Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_CheckMark] = ImVec4(0.831f, 0.286f, 1.f, 0.58f);
+    style->Colors[ImGuiCol_SliderGrab] = ImVec4(0.80f, 0.80f, 0.83f, 0.31f);
+    style->Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_Button] = ImVec4(0.137f, 0.086f, 0.235f, 1.00f);
+    style->Colors[ImGuiCol_ButtonHovered] = ImVec4(0.2f, 0.1f, 0.3f, 1.00f);
+    style->Colors[ImGuiCol_ButtonActive] = ImVec4(0.24f, 0.11f, 0.45f, 1.00f);
+    style->Colors[ImGuiCol_Header] = ImVec4(0.10f, 0.09f, 0.12f, 1.00f);
+    style->Colors[ImGuiCol_HeaderHovered] = ImVec4(0.188f, 0.043f, 0.274f, 1.00f);
+    style->Colors[ImGuiCol_HeaderActive] = ImVec4(0.325f, 0.011f, 0.447f, 1.00f);
+    style->Colors[ImGuiCol_ResizeGrip] = ImVec4(0.266f, 0.098f, 0.87f, 0.00f);
+    style->Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.172f, 0.f, 1.f, 1.00f);
+    style->Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.06f, 0.05f, 0.07f, 1.00f);
+    style->Colors[ImGuiCol_PlotLines] = ImVec4(0.40f, 0.39f, 0.38f, 0.63f);
+    style->Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
+    style->Colors[ImGuiCol_PlotHistogram] = ImVec4(0.40f, 0.39f, 0.38f, 0.63f);
+    style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
+    style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
+    style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(1.00f, 0.98f, 0.95f, 0.73f);
 }

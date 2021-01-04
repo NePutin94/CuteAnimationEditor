@@ -18,6 +18,7 @@ namespace CAE
         bool pointSelected;
         bool partSelected;
         bool ctrlPress;
+        bool altPress;
         bool Exit = false;
         sf::Vector2f oldPos;
         float zoom = 1;
@@ -32,7 +33,7 @@ namespace CAE
                                                                                                    selectedNode(nullptr),
                                                                                                    MouseLeftPressed(false),
                                                                                                    KeyPressed(false), pointSelected(false),
-                                                                                                   ctrlPress(false)
+                                                                                                   ctrlPress(false), altPress(false)
         {}
 
         void Enable() override
@@ -67,6 +68,14 @@ namespace CAE
             {
                 ctrlPress = false;
             });
+            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::LAlt), [this](sf::Event&)
+            {
+                altPress = true;
+            });
+            eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::LAlt), [this](sf::Event&)
+            {
+                altPress = false;
+            });
             eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event& event)
             {
                 MouseLeftPressed = true;
@@ -81,14 +90,16 @@ namespace CAE
                 if(ctrlPress)
                 {
                     if(!Exit && !MouseLeftPressed && asset != nullptr)
-                        asset->iterateByPart_s([this](Part& part)
-                                               {
-                                                   if(part.isSelected() && part.getRect().contains(EventsHolder.currMousePos()))
-                                                       part.setSelected(false);
-                                               });
+                        asset->iterateByPart_s1([this](Part& part)
+                                                {
+                                                    if(part.isSelected() && part.getRect().contains(EventsHolder.currMousePos()))
+                                                        part.setSelected(false);
+                                                });
 
                 }
             });
+
+            //move rect and scale node by mouse
             eManager.addEvent(MouseEvent(sf::Event::MouseMoved), [this](sf::Event& event)
             {
                 //bool endNodeUpdate = false;
@@ -151,10 +162,8 @@ namespace CAE
                                                 break;
                                         }
                                         break;
-                                        //endNodeUpdate = true;
                                     }
-                                //  if(endNodeUpdate)
-                                //      break;
+
                                 if(auto rect = elem->getRect();
                                         elem->isSelected() ||
                                         (!pointSelected && (((selectedPart != nullptr) ? selectedPart == elem : true) &&
@@ -165,6 +174,7 @@ namespace CAE
                                         selectedPart = elem;
                                         selectedGroup = group;
                                         selectedPart->changeColor(sf::Color(71, 58, 255));
+                                        elem->setSelected(true);
                                     }
                                     partSelected = true;
                                     sf::Vector2f delta = (sf::Vector2f) EventsHolder.getDelta();
@@ -194,12 +204,15 @@ namespace CAE
                                         elem->setRect(rect);
                                     }
 
-                                    if(!elem->isSelected())
+                                    if(!elem->isSelected() || selectedPart == elem || lastSelected == elem)
                                     {
                                         if(lastSelected != nullptr && lastSelected != selectedPart)
                                         {
-                                            if(!selectedPart->isSelected())
-                                                lastSelected->changeColor(sf::Color::Red);
+                                            //if(!selectedPart->isSelected())
+                                            //{
+                                            lastSelected->setSelected(false);
+                                            // lastSelected->changeColor(sf::Color::Red);
+                                            //}
                                         }
                                         lastSelected = selectedPart;
                                     }
@@ -209,65 +222,46 @@ namespace CAE
                 }
             });
 
-            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Up), [this](sf::Event&)
+            //move rect by arrow
+            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Up), [this](sf::Event& e)
             {
-
-                if(!Exit && !MouseLeftPressed && asset != nullptr)
-                    asset->iterateByPart_s([this](Part& part)
-                                           {
-                                               auto rec = part.getRect();
-                                               rec.top -= 1;
-                                               //rec.height -= 1;
-                                               part.setRect(rec);
-                                           });
+                if(!ctrlPress && !Exit && !MouseLeftPressed && asset != nullptr)
+                    asset->iterateByPart_s2([this](Part& part)
+                                            {
+                                                auto rec = part.getRect();
+                                                rec.top = std::round(rec.top) - 1;
+                                                part.setRect(rec);
+                                            });
             });
             eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Down), [this](sf::Event&)
             {
-                if(!Exit && !MouseLeftPressed && asset != nullptr)
-                    for(auto group : *asset)
-                    {
-                        if(group->isVisible())
-                            for(std::shared_ptr<Part> elem : *group)
-                                if(elem->isSelected())
-                                {
-                                    auto rec = elem->getRect();
-                                    rec.top += 1;
-                                    //rec.height += 1;
-                                    elem->setRect(rec);
-                                }
-                    }
+                if(!ctrlPress && !Exit && !MouseLeftPressed && asset != nullptr)
+                    asset->iterateByPart_s2([this](Part& part)
+                                            {
+                                                auto rec = part.getRect();
+                                                rec.top = std::round(rec.top) + 1;
+                                                part.setRect(rec);
+                                            });
             });
             eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Left), [this](sf::Event&)
             {
-                if(!Exit && !MouseLeftPressed && asset != nullptr)
-                    for(auto group : *asset)
-                    {
-                        if(group->isVisible())
-                            for(std::shared_ptr<Part> elem : *group)
-                                if(elem->isSelected())
-                                {
-                                    auto rec = elem->getRect();
-                                    rec.left -= 1;
-                                    // rec.width -= 1;
-                                    elem->setRect(rec);
-                                }
-                    }
+                if(!ctrlPress && !Exit && !MouseLeftPressed && asset != nullptr)
+                    asset->iterateByPart_s2([this](Part& part)
+                                            {
+                                                auto rec = part.getRect();
+                                                rec.left = std::round(rec.left) - 1;
+                                                part.setRect(rec);
+                                            });
             });
             eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Right), [this](sf::Event&)
             {
-                if(!Exit && !MouseLeftPressed && asset != nullptr)
-                    for(auto group : *asset)
-                    {
-                        if(group->isVisible())
-                            for(std::shared_ptr<Part> elem : *group)
-                                if(elem->isSelected())
-                                {
-                                    auto rec = elem->getRect();
-                                    rec.left += 1;
-                                    //  rec.width += 1;
-                                    elem->setRect(rec);
-                                }
-                    }
+                if(!ctrlPress && !Exit && !MouseLeftPressed && asset != nullptr)
+                    asset->iterateByPart_s2([this](Part& part)
+                                            {
+                                                auto rec = part.getRect();
+                                                rec.left = std::round(rec.left) + 1;
+                                                part.setRect(rec);
+                                            });
             });
         }
 
