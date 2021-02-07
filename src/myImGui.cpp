@@ -1,4 +1,5 @@
 #include <SFML/OpenGL.hpp>
+#include "../include/ConsoleLog.h"
 #include <SFML/Graphics/Texture.hpp>
 #include <filesystem>
 #include <imgui.h>
@@ -77,7 +78,7 @@ bool ImGui::SelectableImage(const sf::Texture& texture, bool selected, const ImV
     {
         //RenderNavHighlight(bb, id);
         //RenderFrame(bb.Min, bb.Max, col, true, ImClamp((float)ImMin(padding.x, padding.y), 0.0f, g.Style.FrameRounding));
-        tint_col =  CAE::Colors::Tool_s;
+        tint_col = CAE::Colors::Tool_s;
     }
     if(hovered)
         tint_col = CAE::Colors::Tool_h;
@@ -112,7 +113,6 @@ std::pair<bool, std::string> ImGui::FileManager(FileManager_Context& context)
         }
         //------selected area------//
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 2.0f);
-        int _s = ImGui::GetCursorPosY();
         ImVec2 upPanelSize = {0, 64};
         if(context.updateDir)
         {
@@ -124,7 +124,7 @@ std::pair<bool, std::string> ImGui::FileManager(FileManager_Context& context)
             } else
                 context.files.clear();
         }
-        ImGui::BeginChild("##Child1", upPanelSize);
+        ImGui::BeginChild("##Child1", upPanelSize, false, ImGuiWindowFlags_NoScrollbar);
         {
             char buffer[256];
             strcpy_s(buffer, context._path.c_str());
@@ -140,7 +140,7 @@ std::pair<bool, std::string> ImGui::FileManager(FileManager_Context& context)
                 ImGui::SetKeyboardFocusHere(0);
             }
         }
-        ImGui::Spacing();
+        //ImGui::Spacing();
         ImGui::Image(CAE::IcoHolder::getTexture_s(CAE::ico_t::Arrow), sf::Vector2f(32, 32), sf::Color(106, 179, 204));
         if(ImGui::IsItemClicked())
         {
@@ -150,12 +150,10 @@ std::pair<bool, std::string> ImGui::FileManager(FileManager_Context& context)
             context.selected_nodes.clear();
             context.updateDir = true;
         }
-        ImGui::SameLine();
-        //ImGui::Image(CAE::IcoHolder::getTexture_s(CAE::ico_t::Arrow), sf::Vector2f(32, 32), sf::Vector2f(1, 0), sf::Vector2f(0, 1), sf::Color(106, 179, 204));
         ImGui::EndChild();
         ImGui::PopStyleVar();
         os += upPanelSize;
-        const int UpPadding = 20;
+        const int UpPadding = 15;
         float x = 0.f;
         float y = 0.f;
         const int w = 160;
@@ -238,69 +236,96 @@ std::pair<bool, std::string> ImGui::FileManager(FileManager_Context& context)
             ImGui::Text("%s", str.c_str());
 
             //---- Events
+
             if(fs::is_regular_file(fyles.second))
             {
+                if(ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
+                {
+                    context.selected_nodes.clear();
+                }
                 if(ImGui::GetIO().KeyCtrl && ImGui::IsKeyPressed(22)) //4 is 'w' key id
                 {
                     context.Input = true;
                 }
-                if(ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
+                if(!context.selectOne)
                 {
-                    context.selected_nodes.clear();
-                }
-                if(ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)))
-                {
-                    //show = false;
-                    ImGui::PopID();
-                    ImGui::EndChild();
-                    ImGui::End();
-                    int _i = 0;
-                    std::string str;
-                    if(context.selected_nodes.empty())
-                        return {false, ""};
-                    //for (const auto& fyles : fs::directory_iterator(p))
-                    for(const auto& fyles : context.files)
-                        if(context.selected_nodes.find(++_i) != context.selected_nodes.end())
-                        {
-                            auto f = fs::path(fyles.second).filename().string();
-                            std::regex word_regex(context.filter);
-                            if(std::regex_match(f, word_regex))
-                                str += f + ";";
-                        }
-                    context.selected_nodes.clear();
-                    context.open = false;
-                    return {true, str};
-                }
-                if(ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Escape)))
-                {
-                    context.selected_nodes.clear();
-                }
-                if(out_hovered && ImGui::IsMouseClicked(0) && ImGui::GetIO().KeyCtrl)
-                {
-                    if(!context.selected_nodes.emplace(i).second)
-                        context.selected_nodes.erase(i);
-                } else if(out_hovered && ImGui::IsMouseClicked(0) && ImGui::GetIO().KeyShift)
-                {
-                    if(context.selected_nodes.size() > 1)
-                        context.selected_nodes.clear();
-                    else
+                    if(ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)))
                     {
-                        int start = std::min(*context.selected_nodes.begin(), i);
-                        int end = std::max(*context.selected_nodes.begin(), i) + 1;
-                        for(int _i = start; _i != end; ++_i)
-                            context.selected_nodes.emplace(_i);
+                        //show = false;
+                        //if we went to this branch, we will definitely interrupt the execution of the function, so we must call PopID, End etc.
+                        ImGui::PopID();
+                        ImGui::EndChild();
+                        ImGui::End();
+                        int _i = 0;
+                        std::string str;
+                        if(context.selected_nodes.empty())
+                            return {false, ""};
+                        //for (const auto& fyles : fs::directory_iterator(p))
+                        for(const auto& fyles : context.files)
+                            if(context.selected_nodes.find(++_i) != context.selected_nodes.end())
+                            {
+                                auto f = fs::path(fyles.second).filename().string();
+                                std::regex word_regex(context.filter);
+                                if(std::regex_match(f, word_regex))
+                                    str += f + ";";
+                            }
+                        context.selected_nodes.clear();
+                        context.open = false;
+                        return {true, str};
                     }
-                } else if(out_hovered && ImGui::IsMouseClicked(0))
+                    if(out_hovered && ImGui::IsMouseClicked(0) && ImGui::GetIO().KeyCtrl)
+                    {
+                        if(!context.selected_nodes.emplace(i).second)
+                            context.selected_nodes.erase(i);
+                    } else if(out_hovered && ImGui::IsMouseClicked(0) && ImGui::GetIO().KeyShift)
+                    {
+                        if(context.selected_nodes.size() > 1)
+                            context.selected_nodes.clear();
+                        else
+                        {
+                            int start = std::min(*context.selected_nodes.begin(), i);
+                            int end = std::max(*context.selected_nodes.begin(), i) + 1;
+                            for(int _i = start; _i != end; ++_i)
+                                context.selected_nodes.emplace(_i);
+                        }
+                    } else if(out_hovered && ImGui::IsMouseClicked(0))
+                    {
+                        context.selected_nodes.clear();
+                        context.selected_nodes.emplace(i);
+                    }
+                } else
                 {
-                    context.selected_nodes.clear();
-                    context.selected_nodes.emplace(i);
-                }
+                    if(out_hovered && ImGui::IsMouseClicked(0))
+                    {
+                        context.selected_nodes.clear();
+                        context.selected_nodes.emplace(i);
+                    }
+                    if(out_hovered && ImGui::IsMouseDoubleClicked(0))
+                    {
 
+                        auto f = fs::path(fyles.second).filename().string();
+                        std::regex word_regex(context.filter);
+                        if(std::regex_match(f, word_regex))
+                        {
+                            ImGui::PopID();
+                            ImGui::EndChild();
+                            ImGui::End();
+                            context.selected_nodes.clear();
+                            context.open = false;
+                            return {true, f};
+                        } else
+                        {
+                            CAE::Console::AppLog::addLog_("Wrong file extension, filter is %s", CAE::Console::message,
+                                                          context.filter.c_str());
+                        }
+                    }
+                }
             } else if(!is_regular && ImGui::IsMouseDoubleClicked(0) && out_hovered)
             {
                 context._path = fs::path(fyles.second).generic_string();
                 context.updateDir = true;
             }
+
             //---- Next position
             x += w + XPadding;
             if(x + w > ImGui::GetWindowSize().x)

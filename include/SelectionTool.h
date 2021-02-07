@@ -3,6 +3,7 @@
 #include "Tool.h"
 #include "AnimationAsset.h"
 #include "AppColors.h"
+
 namespace CAE
 {
     class SelectionTool : public Tool
@@ -13,7 +14,7 @@ namespace CAE
         sf::RectangleShape shape;
         bool ButtonPressed;
         bool once;
-        bool Selection;
+       // bool Selection;
         sf::IntRect rect;
 
         void assetUpdated() override
@@ -75,7 +76,7 @@ namespace CAE
         }
 
     public:
-        SelectionTool(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window) : Tool(m, t, window), Selection(false)
+        SelectionTool(EMHolder& m, const sf::Texture& t, sf::RenderWindow& window) : Tool(m, t, window)
         {
             shape.setFillColor(sf::Color::Transparent);
             shape.setOutlineColor(CAE::Colors::OutLine_r);
@@ -103,28 +104,35 @@ namespace CAE
                 shape.setPosition(sf::Vector2f(0, 0));
                 shape.setSize(sf::Vector2f(0, 0));
             });
-            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::LControl), [this](sf::Event&)
-            {
-                Selection = true;
-            });
+//            eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::LControl), [this](sf::Event&)
+//            {
+//                Selection = true;
+//            });
+//            eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::LControl), [this](sf::Event&)
+//            {
+//                Selection = false;
+//            });
             eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event&)
             {
                 ButtonPressed = true;
-                shape.setPosition(sf::Vector2f(0, 0));
-                shape.setSize(sf::Vector2f(0, 0));
             });
             eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event&)
             {
                 if(once)
                 {
-                    once = false;
                     calcRect(rect);
+                    once = false;
+                   // Selection = false;
+                    rect = {};
+                    History_data::NeedSnapshot();
                 }
                 ButtonPressed = false;
+                shape.setPosition(sf::Vector2f(0, 0));
+                shape.setSize(sf::Vector2f(0, 0));
             });
             eManager.addEvent(MouseEvent(sf::Event::MouseMoved), [this](sf::Event&)
             {
-                if(!Selection && ButtonPressed)
+                if(!EventsHolder.isCtrlPressed() && ButtonPressed)
                 {
                     if(!once)
                     {
@@ -144,7 +152,7 @@ namespace CAE
             eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left),
                               [this](sf::Event&)
                               {
-                                  if(Selection)
+                                  if(EventsHolder.isCtrlPressed())
                                       for(auto& g : *asset)
                                           for(auto& part : *g)
                                           {
@@ -152,7 +160,6 @@ namespace CAE
                                               {
                                                   part->setSelected(!part->isSelected());
                                                   g->setSelected(part->isSelected());
-                                                  Selection = false;
                                                   return;
                                               }
                                           }

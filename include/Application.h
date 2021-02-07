@@ -5,35 +5,42 @@
 #include "EventManager.h"
 #include "MagicTool.h"
 #include "Tools.h"
-#include <future>
-#include <opencv2/imgproc/types_c.h>
-#include <opencv2/imgproc/imgproc_c.h>
-#include <opencv2/imgproc.hpp>
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui_c.h>
-#include <opencv2/highgui/highgui.hpp>
+#include "IcoHolder.h"
 #include <set>
 #include <list>
-#include "IcoHolder.h"
+#include <deque>
 
 namespace CAE
 {
-
     class Application
     {
     private:
+        static constexpr short file_history_sz = 5;
         int corner = 1;
-        int bg_alpha = 8.f;
+        int bg_alpha = 8;
+        float fps;
         IcoHolder ico_holder;
         Tools tools_container;
+        std::deque<std::string> fileHistory;
         TAP animPlayer;
-        //MagicTool    magicTool;
-        //EventManager eManager;
         EMHolder eventManagers;
-        float fps;
+        std::string lastOpenFile;
         std::shared_ptr<AnimationAsset> currAsset;
         std::list<std::shared_ptr<AnimationAsset>> animAssets;
         std::vector<std::shared_ptr<Part>> editorSubArray;
+        std::shared_ptr<AnimationAsset> load;
+        void historyAddFile(std::string f)
+        {
+            if(std::find_if(fileHistory.begin(),fileHistory.end(),[f](auto& file) { return f == file;}) != fileHistory.end())
+                return;
+            fileHistory.push_front(f);
+            if(fileHistory.size() >= file_history_sz)
+            {
+                fileHistory.pop_back();
+                fileHistory.push_front(f);
+            }
+        }
+
         enum class states
         {
             Null = 0,
@@ -54,34 +61,29 @@ namespace CAE
         sf::Clock deltaClock;
         sf::Clock attTimer;
 
-//        ScaleNode* selectedNode;
-//        std::shared_ptr<Part> selectedPart;
-//        std::shared_ptr<Part> lastSelected;
-//        std::shared_ptr<Group> selectedGroup;
         //--------------------------end--------------------------//
         sf::RectangleShape shape;
 
         std::set<int> selectedParts;
         std::set<int> selectedGroups;
 
-        float scaleFactor; //global scale factor, set as a constant
+        float scaleFactor; //depr
         float nodeSize;
-        int scaleSign;   //can only be positive(1) and negative(-1)
+        int scaleSign;   //drpt
         char buff[256]{};
         char buff2[2048]{};
         char buff3[256]{};
         bool LogConsole;
-        //bool useMouse;
         bool creatorMode;
         bool toolsWindowFocused;
-        //bool pointSelected;
         bool useFloat;
         bool newMessage;
-        //bool selectArea;
 
         void handleEvent(sf::Event& event);
 
         void draw();
+
+        void openRecent();
 
         void update();
 
@@ -140,6 +142,5 @@ namespace CAE
 
         friend class Tools;
     };
-
 }
 

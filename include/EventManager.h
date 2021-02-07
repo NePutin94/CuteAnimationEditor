@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EventHistory.h"
 #include <SFML/Window/Event.hpp>
 #include <SFML/Graphics.hpp>
 #include <algorithm>
@@ -230,6 +231,8 @@ namespace CAE
         sf::Vector2i deltaPos;
         sf::Vector2f deltaPos_f;
         sf::Vector2f newPos_f;
+        bool Lctrl = false;
+        bool Lalt = false;
     public:
         auto& addEM(std::string_view name, bool Enable = true)
         {
@@ -242,13 +245,28 @@ namespace CAE
         {
             return events.find(name)->second;
         }
-
+        bool isAltPressed()
+        {
+            return Lalt;
+        }
+        bool isCtrlPressed()
+        {
+            return Lctrl;
+        }
         void updateEvent(sf::Event& e, const sf::RenderWindow& w)
         {
+
             switch(e.type)
             {
                 case sf::Event::MouseWheelScrolled:
                 {
+                }
+                    break;
+                case sf::Event::KeyReleased:
+                case sf::Event::KeyPressed:
+                {
+                    Lctrl = e.key.control;
+                    Lalt = e.key.alt;
                 }
                     break;
                 case sf::Event::MouseMoved:

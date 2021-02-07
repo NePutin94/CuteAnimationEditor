@@ -1,107 +1,121 @@
 #include "../include/AnimationAsset.h"
 #include <iomanip>
+#include <thread>
 
 
-bool CAE::AnimationAsset::loadFromFile()
+void CAE::AnimationAsset::loadFromFile()
 {
-    if(std::ifstream i(assetPath.data(), ifstream::in); i.is_open())
+    auto task = [this]()
     {
-        json j;
-        i >> j;
-        try
+        sf::Context _;
+        if(std::ifstream istream(assetPath.data(), ifstream::in); istream.is_open())
         {
-            auto info = j.at("defaultInfo");
-            name = info.at("name").get<std::string>();
-            if(info.at("texturePath").is_array())
+            json j;
+            istream >> j;
+            try
             {
-                is_array = true;
-                json _t = j["defaultInfo"]["texturePath"];
-                if(_t.is_array())
+                auto info = j.at("defaultInfo");
+                name = info.at("name").get<std::string>();
+                if(info.at("texturePath").is_array())
                 {
-                    std::multimap<int, sf::Texture> textures;
-                    sf::Vector2u size;
-                    int sz = _t.size();
-                    unsigned int widht = 0;
-                    unsigned int height = 0;
-                    int i = 0;
-                    int padding = 20;
-                    draw_data.padding = padding;
-                    for(auto& elem : _t)
+                    is_array = true;
+                    json _t = j["defaultInfo"]["texturePath"];
+                    if(_t.is_array())
                     {
-                        Textures tt;
-                        auto dir = elem.at("PathsToTexture").get<std::string>();
-                        sf::Vector2u s;
-                        tt.path = dir;
-                        for(auto& p : elem["Textures"])
+                        std::multimap<int, sf::Texture> textures;
+                        sf::Vector2u size;
+                        unsigned int sz = _t.size();
+                        unsigned int widht = 0;
+                        unsigned int height = 0;
+                        int i = 0;
+                        int padding = 20;
+                        draw_data.padding = padding;
+                        for(auto& elem : _t)
                         {
-                            sf::Texture t;
-                            texturePath += p.get<std::string>();
-                            if(!t.loadFromFile(dir + "/" + p.get<std::string>()))
+                            Textures tt;
+                            auto dir = elem.at("PathsToTexture").get<std::string>();
+                            sf::Vector2u s;
+                            tt.path = dir;
+                            for(auto& p : elem["Textures"])
                             {
-                                Console::AppLog::addLog("Can't open " + dir + "/" + p.get<std::string>(), Console::error);
-                                return false;
+                                sf::Texture t;
+                                texturePath += p.get<std::string>();
+                                if(!t.loadFromFile(dir + "/" + p.get<std::string>()))
+                                {
+                                    Console::AppLog::addLog("Can't open " + dir + "/" + p.get<std::string>(), Console::error);
+                                    data_ready.store(2);
+                                    return;
+                                    //return false;
+                                }
+                                tt.files.emplace_back(p.get<std::string>());
+                                tt.textures.push_back(t);
+                                textures.emplace(i, t);
+                                s.x = std::max(s.x, t.getSize().x);
+                                s.y = std::max(s.y, t.getSize().y);
                             }
-                            tt.files.emplace_back(p.get<std::string>());
-                            tt.textures.push_back(t);
-                            textures.emplace(i, t);
-                            s.x = std::max(s.x, t.getSize().x);
-                            s.y = std::max(s.y, t.getSize().y);
+                            size.x = std::max(s.x, size.x);
+                            size.y = std::max(s.y, size.y);
+                            widht = std::max((unsigned int) (s.x * elem["Textures"].size()), widht);
+                            height = std::max(s.y * sz, height);
+                            ++i;
+                            t_data.emplace(i, tt);
                         }
-                        size.x = std::max(s.x, size.x);
-                        size.y = std::max(s.y, size.y);
-                        widht = std::max((unsigned int) (s.x * elem["Textures"].size()), widht);
-                        height = std::max(s.y * sz, height);
-                        ++i;
-                        t_data.emplace(i, tt);
-                    }
-                    sf::RenderTexture tx;
-                    tx.create(widht, height + padding * sz);
-                    int x = 0, y = 0;
-                    tx.clear(sf::Color::Transparent);
-                    draw_data.FrameSize = size;
-                    draw_data.TextureSize = tx.getSize();
-                    //draw_data.FrameCount
-                    for(i = 0; i < sz; ++i)
-                    {
-                        auto range = textures.equal_range(i);
-                        for(auto it = range.first; it != range.second; ++it)
+                        sf::RenderTexture tx;
+                        tx.create(widht, height + padding * sz);
+                        int x = 0, y = 0;
+                        tx.clear(sf::Color::Transparent);
+                        draw_data.FrameSize = size;
+                        draw_data.TextureSize = tx.getSize();
+                        //draw_data.FrameCount
+                        for(i = 0; i < sz; ++i)
                         {
-                            sf::Sprite s(it->second);
-                            s.setPosition(x, y);
-                            tx.draw(s);
-                            x += size.x;
+                            auto range = textures.equal_range(i);
+                            for(auto it = range.first; it != range.second; ++it)
+                            {
+                                sf::Sprite s(it->second);
+                                s.setPosition(x, y);
+                                tx.draw(s);
+                                x += size.x;
+                            }
+                            x = 0;
+                            y += size.y + 20;
                         }
-                        x = 0;
-                        y += size.y + 20;
+                        tx.display();
+                        texture = tx.getTexture();
+                        setTexture(texture);
                     }
-                    tx.display();
-                    texture = tx.getTexture();
+                } else
+                {
+                    is_array = false;
+                    texturePath = info.at("texturePath").get<std::string>();
+                    if(!texture.loadFromFile(texturePath))
+                    {
+                        Console::AppLog::addLog("Can't load texture", Console::error);
+                        //return false;
+                        data_ready.store(2);
+                        return;
+                    }
                     setTexture(texture);
                 }
-            } else
-            {
-                is_array = false;
-                texturePath = info.at("texturePath").get<std::string>();
-                if(!texture.loadFromFile(texturePath))
+                for(auto& group : j.at("Groups"))
                 {
-                    Console::AppLog::addLog("Can't load texture", Console::error);
-                    return false;
+                    groups.emplace_back(std::make_shared<Group>(Group()));
+                    groups.back()->load(group);
                 }
-                setTexture(texture);
+                //return true;
             }
-            for(auto& group : j.at("Groups"))
+            catch (json::exception& e)
             {
-                groups.emplace_back(std::make_shared<Group>(Group()));
-                groups.back()->load(group);
+                Console::AppLog::addLog("Json throw exception, message: " + std::string(e.what()), Console::error);
+                //data_ready.store(false);
+                data_ready.store(2);
+                return;
             }
-            return true;
         }
-        catch (json::exception& e)
-        {
-            Console::AppLog::addLog("Json throw exception, message: " + std::string(e.what()), Console::error);
-        }
-    }
-    return false;
+        data_ready.store(1);
+    };
+    data_ready.store(0);
+    std::thread(task).detach();
 }
 
 bool CAE::AnimationAsset::saveAsset(std::string_view path)
@@ -117,14 +131,14 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
         info["texturePath"] = json::array();
         for(auto& p : t_data)
         {
-            json j;
-            j["PathsToTexture"] = p.second.path;
-            j["Textures"] = json::array();
+            json j2;
+            j2["PathsToTexture"] = p.second.path;
+            j2["Textures"] = json::array();
             for(auto& pp : p.second.files)
             {
-                j["Textures"].emplace_back(pp);
+                j2["Textures"].emplace_back(pp);
             }
-            info["texturePath"].emplace_back(j);
+            info["texturePath"].emplace_back(j2);
         }
     } else
         info["texturePath"] = texturePath;
@@ -141,8 +155,11 @@ bool CAE::AnimationAsset::saveAsset(std::string_view path)
     return true;
 }
 
-CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path)
-{}
+CAE::AnimationAsset::AnimationAsset(std::string_view _path) : assetPath(_path), data_ready(0)
+{
+    draw_data.padding = 20;
+    draw_data.FrameCount = 0;
+}
 
 sf::Image CAE::AnimationAsset::makeTexture(const json& j, sf::Vector2i _padding)
 {
@@ -288,7 +305,7 @@ CAE::AnimationAsset::CreateMultiTexture(std::multimap<int, sf::Texture> textures
     sf::Vector2i countXY = {std::max_element(keysCount.begin(), keysCount.end())->second, static_cast<int>(keysCount.size()) + 1};
     unsigned int widht = (FrameSize.x + padding.x) * countXY.x;
     unsigned int height = (FrameSize.y + padding.y) * countXY.y;
-    int sz = textures.size();
+    unsigned int sz = textures.size();
     sf::RenderTexture tx;
     tx.create(widht, height);
     int x = 0, y = 0;

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include "EventHistory.h"
 
 using json = nlohmann::json;
 namespace CAE
@@ -28,6 +29,7 @@ namespace CAE
         {
             setRadius(r);
             setOrigin(r, r);
+
         }
     };
 
@@ -38,16 +40,17 @@ namespace CAE
         std::array<ScaleNode, 4> node;
         sf::Color color;
         bool IsSelected;
-        int id;
+        unsigned int id;
+        static unsigned int _id;
 
         void update();
 
     public:
         sf::FloatRect box;
 
-        explicit Part(sf::FloatRect _rect);
+        Part(sf::FloatRect _rect);
 
-        explicit Part(sf::FloatRect _rect, int id);
+        Part(sf::IntRect _rect);
 
         ~Part() = default;
 
@@ -59,11 +62,17 @@ namespace CAE
 
         void changeColor(sf::Color c);
 
+        auto getColor()
+        { return color; }
+
         auto getRect()
         { return box; }
 
         auto getId()
         { return id; }
+
+        void setId(int id)
+        { this->id = id; }
 
         bool setSelected(bool s)
         {
@@ -93,14 +102,17 @@ namespace CAE
         bool IsSelected;
         float animSpeed;
         float scale;
+        unsigned int id;
+        History_data* his;
 
         std::string name;
         std::vector<std::shared_ptr<Part>> parts;
     public:
         Group() = default;
 
-        explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(30.f), isLooped(false), scale(1.f),
-                                                 IsSelected(false)
+        explicit Group(std::string_view _name) : name(_name), isEnable(true), animSpeed(30.f), isLooped(false),
+                                                 scale(1.f),
+                                                 IsSelected(false), id(0)
         {}
 
         Group(Group&& g) = default;
@@ -108,10 +120,19 @@ namespace CAE
         ~Group() = default;
 
         void setName(std::string sp)
-        { name = sp; }
+        { name = sp;  History_data::NeedSnapshot(); }
 
         void addPart(sf::FloatRect p)
-        { parts.emplace_back(std::make_shared<Part>(Part(p))); }
+        { addPart(Part(p)); }
+
+        void addPart(sf::IntRect p)
+        { addPart(Part(p)); }
+
+        void addPart(Part p)
+        {
+            parts.emplace_back(std::make_shared<Part>(p));
+            History_data::NeedSnapshot();
+        }
 
         void setSpeed(float sp)
         { animSpeed = sp; }
@@ -148,6 +169,9 @@ namespace CAE
 
         auto& getParts()
         { return parts; }
+
+        int getId()
+        { return id; }
 
         void save(json& j);
 

@@ -106,6 +106,45 @@ void CAE::Application::draw()
 
 void CAE::Application::update()
 {
+    if(load != nullptr)
+    {
+        switch(load->getStatus())
+        {
+            case 0:
+            {
+
+            }
+                break;
+            case 1:
+            {
+                History_data::NeedSnapshot();
+                if(auto it = find_if(animAssets.begin(), animAssets.end(), [this](auto val)
+                    {
+                        return load->getName() == val->getName();
+                    }); it != animAssets.end())
+                {
+                    Console::AppLog::addLog_("Assets %s loaded arleady", Console::message, load->getName().c_str());
+                    currAsset = *it;
+                } else
+                {
+                    Console::AppLog::addLog_("Assets %s loaded", Console::message, load->getName().c_str());
+                    animAssets.emplace_back(load);
+                    // if(setAsCurr)
+                    // {
+                    currAsset = animAssets.back();
+                    assetChanged = true;
+                    // }
+                }
+                load.reset();
+            }
+                break;
+            case 2:
+            {
+                Console::AppLog::addLog_("Cant' load asset from %s", Console::message, load->getPath().c_str());
+            }
+                break;
+        }
+    }
     if(attTimer.getElapsedTime() > sf::seconds(2))
     {
         if(Console::AppLog::hasNewLogByTyp(Console::message))
@@ -122,6 +161,8 @@ void CAE::Application::update()
         assetChanged = false;
         tools_container.changeCurrAsset(currAsset);
     }
+    if(currAsset != nullptr)
+        History_data::update(currAsset.get());
     //editorUpdate();
 }
 
@@ -134,56 +175,76 @@ void CAE::Application::loadAssets()
     ImGui::Spacing();
     ImGui::Text("Available assets: ");
 
-    ImGui::Image(ico_holder.getTexture(ico_t::Refresh), {32, 32});
+    //ImGui::Image(ico_holder.getTexture(ico_t::Refresh), {32, 32});
     static std::vector<std::string> _files;
     constexpr std::string_view default_path = "./assets";
-    if(ImGui::IsItemClicked())
+//    if(ImGui::IsItemClicked())
+//    {
+//        _files.clear();
+//        if(fs::exists(default_path))
+//        {
+//            for(auto& p : fs::directory_iterator(default_path))
+//            {
+//                auto name = p.path().filename().string();
+//                if(p.path().extension() == ".json")
+//                    _files.emplace_back(name);
+//            }
+//        } else
+//            Console::AppLog::addLog("Directory .\"assets\" not exist", Console::error);
+//    }
     {
-        _files.clear();
-        if(fs::exists(default_path))
-        {
-            for(auto& p : fs::directory_iterator(default_path))
-            {
-                auto name = p.path().filename().string();
-                if(p.path().extension() == ".json")
-                    _files.emplace_back(name);
-            }
-        } else
-            Console::AppLog::addLog("Directory .\"assets\" not exist", Console::error);
-    }
-    {
+        static bool once = true;
         static int selected = -1;
         int i = 0;
-        ImGui::Separator();
-        for(auto& name : _files)
+        bool isOpen = ImGui::TreeNode("./assets");
+        if(once && isOpen)
         {
-            if(ImGui::Selectable(name.c_str()))
-                selected = i;
-            ImGui::Spacing();
-            if(selected == i)
+            once = false;
+            _files.clear();
+            if(fs::exists(default_path))
             {
-                ImGui::BeginChild("Note");
-                ImGui::OpenPopup("Open");
-                if(ImGui::BeginPopupModal("Open", NULL, ImGuiWindowFlags_AlwaysAutoResize))
+                for(auto& p : fs::directory_iterator(default_path))
                 {
-                    ImGui::Text("%s", (std::string{"Load "} + name).c_str());
-                    ImGui::Separator();
-                    if(ImGui::Button("Yes", ImVec2(140, 0)))
-                    {
-                        loadAsset(std::string{default_path} + "/" + name, true);
-                        selected = -1;
-                    }
-                    ImGui::SetItemDefaultFocus();
-                    ImGui::SameLine();
-                    if(ImGui::Button("No", ImVec2(140, 0))) selected = -1;
-                    ImGui::EndPopup();
+                    auto name = p.path().filename().string();
+                    if(p.path().extension() == ".json")
+                        _files.emplace_back(name);
                 }
-                ImGui::EndChild();
-            }
-            ++i;
+            } else
+                Console::AppLog::addLog("Directory .\"assets\" not exist", Console::error);
         }
+        if(isOpen)
+        {
+            for(auto& name : _files)
+            {
+                if(ImGui::Selectable(name.c_str()))
+                    selected = i;
+                ImGui::Spacing();
+                if(selected == i)
+                {
+                    ImGui::BeginChild("Note");
+                    ImGui::OpenPopup("Open");
+                    if(ImGui::BeginPopupModal("Open", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+                    {
+                        ImGui::Text("%s", (std::string{"Load "} + name).c_str());
+                        ImGui::Separator();
+                        if(ImGui::Button("Yes", ImVec2(140, 0)))
+                        {
+                            loadAsset(std::string{default_path} + "/" + name, true);
+                            selected = -1;
+                        }
+                        ImGui::SetItemDefaultFocus();
+                        ImGui::SameLine();
+                        if(ImGui::Button("No", ImVec2(140, 0))) selected = -1;
+                        ImGui::EndPopup();
+                    }
+                    ImGui::EndChild();
+                }
+                ++i;
+            }
+            ImGui::TreePop();
+        } else
+            once = true;
     }
-    ImGui::Separator();
     ImGui::Spacing();
     ImGui::Text("Load from other path: ");
     if(ImGui::Button("Load From"))
@@ -193,7 +254,7 @@ void CAE::Application::loadAssets()
         ZeroMemory(&filename, sizeof(filename));
         ZeroMemory(&ofn, sizeof(ofn));
         ofn.lStructSize = sizeof(ofn);
-        ofn.hwndOwner = NULL;
+        ofn.hwndOwner = nullptr;
         ofn.lpstrFilter = ("*json");
         ofn.lpstrFile = filename;
         ofn.nMaxFile = MAX_PATH;
@@ -328,6 +389,7 @@ void CAE::Application::createAssets()
     ImGui::Text("Create asset: ");
     ImGui::Separator();
     ImGui::Spacing();
+    static AnimationAsset a("null");
 
     if(ImGui::TreeNode("Name"))
     {
@@ -339,11 +401,12 @@ void CAE::Application::createAssets()
     static bool makeByGroup = false;
     static bool SingleTex = false;
     static bool MakeTexturesToGroup = false;
-    static std::multimap<int, sf::Texture> textures;
-    static sf::Vector2u maxFrame;
-    static sf::Texture tt;
-    static json j;
+//    static std::multimap<int, sf::Texture> textures;
+//    static sf::Vector2u maxFrame;
+//    static sf::Texture tt;
+    json j;
     static int groupCount = 0;
+
     if(ImGui::TreeNode("Texture path"))
     {
         ImGui::Checkbox("Make by group", &makeByGroup);
@@ -361,8 +424,8 @@ void CAE::Application::createAssets()
             if(auto val = ImGui::FileManager(c); val.first)
             {
                 std::string directory = c.getPath();
-                if(groupCount == 0)
-                    j["AssetCreate"] = json::array();
+                //if(groupCount == 0)
+                j["AssetCreate"] = json::array();
                 json j_;
                 j_["PathsToTexture"] = directory;
                 auto& p = j_["Textures"];
@@ -377,38 +440,44 @@ void CAE::Application::createAssets()
                 }
 
                 j["AssetCreate"].emplace_back(j_);
-                AnimationAsset::ParseMultiAsset(j["AssetCreate"], textures);
-                for(auto& elem : textures)
-                {
-                    maxFrame.x = std::max(elem.second.getSize().x, maxFrame.x);
-                    maxFrame.y = std::max(elem.second.getSize().y, maxFrame.y);
-                }
-                strcpy_s(buff2, "");
-                ofstream out("./chahe.json");
-                out << std::setw(4) << j << std::endl;
+                a.loadFromJsom(j["AssetCreate"]);
+                // AnimationAsset::ParseMultiAsset(j["AssetCreate"], textures);
+//                for(auto& elem : textures)
+//                {
+//                    maxFrame.x = std::max(elem.second.getSize().x, maxFrame.x);
+//                    maxFrame.y = std::max(elem.second.getSize().y, maxFrame.y);
+//                }
+//                strcpy_s(buff2, "");
+//                ofstream out("./chahe.json");
+//                out << std::setw(4) << j << std::endl;
                 ++groupCount;
-                out.close();
+//                out.close();
             }
         } else
         {
             ImGui::InputText("##Texture path", buff2, IM_ARRAYSIZE(buff2));
             ImGui::SameLine();
             ImGui::Image(ico_holder.getTexture(ico_t::Folder), sf::Vector2f{27, 18});
-
-            if(ImGui::IsItemClicked())
+            static ImGui::FileManager_Context c2("./assets", true, ".*.(png|jpg)");
+            c2.setOpen(ImGui::IsItemClicked());
+            if(auto val = ImGui::FileManager(c2); val.first)
             {
-                OPENFILENAME ofn;
-                //ZeroMemory(&buff2, sizeof(buff2));
-                ZeroMemory(&ofn, sizeof(ofn));
-                ofn.lStructSize = sizeof(ofn);
-                ofn.hwndOwner = NULL;
-                ofn.Flags = OFN_EXPLORER;
-                ofn.lpstrFilter = (".png");
-                ofn.lpstrFile = buff2;
-                ofn.nMaxFile = MAX_PATH;
-                GetOpenFileName(&ofn);
-                //buff
+                Console::AppLog::addLog_("path: %s", Console::message, val.second.c_str());
             }
+//            if(ImGui::IsItemClicked())
+//            {
+//                OPENFILENAME ofn;
+//                //ZeroMemory(&buff2, sizeof(buff2));
+//                ZeroMemory(&ofn, sizeof(ofn));
+//                ofn.lStructSize = sizeof(ofn);
+//                ofn.hwndOwner = NULL;
+//                ofn.Flags = OFN_EXPLORER;
+//                ofn.lpstrFilter = (".png");
+//                ofn.lpstrFile = buff2;
+//                ofn.nMaxFile = MAX_PATH;
+//                GetOpenFileName(&ofn);
+//                //buff
+//            }
         }
         ImGui::TreePop();
     }
@@ -418,20 +487,26 @@ void CAE::Application::createAssets()
         ImGui::InputText("##Output file", buff3, IM_ARRAYSIZE(buff3));
         ImGui::SameLine();
         ImGui::Image(ico_holder.getTexture(ico_t::Folder), sf::Vector2f{27, 18});
-        if(ImGui::IsItemClicked())
+        static ImGui::FileManager_Context c("./assets");
+        c.setOpen(ImGui::IsItemClicked());
+        if(auto val = ImGui::FileManager(c); val.first)
         {
-            //char filename[MAX_PATH];
-            OPENFILENAME ofn;
-            ZeroMemory(&buff3, sizeof(buff3));
-            ZeroMemory(&ofn, sizeof(ofn));
-            ofn.lStructSize = sizeof(ofn);
-            ofn.hwndOwner = NULL;
-            ofn.lpstrFilter = (".json");
-            ofn.lpstrFile = buff3;
-            ofn.nMaxFile = MAX_PATH;
-            GetSaveFileName(&ofn);
-            //buff
+
         }
+//        if(ImGui::IsItemClicked())
+//        {
+//            //char filename[MAX_PATH];
+//            OPENFILENAME ofn;
+//            ZeroMemory(&buff3, sizeof(buff3));
+//            ZeroMemory(&ofn, sizeof(ofn));
+//            ofn.lStructSize = sizeof(ofn);
+//            ofn.hwndOwner = NULL;
+//            ofn.lpstrFilter = (".json");
+//            ofn.lpstrFile = buff3;
+//            ofn.nMaxFile = MAX_PATH;
+//            GetSaveFileName(&ofn);
+//            //buff
+//        }
         ImGui::TreePop();
     }
     if(makeByGroup && SingleTex)
@@ -443,49 +518,53 @@ void CAE::Application::createAssets()
             updated = ImGui::SliderInt("padding.y", &padding.y, 0, 200) || updated;
             if(updated)
             {
-                tt.loadFromImage(AnimationAsset::CreateMultiTexture(textures, maxFrame, padding));
+                // tt.loadFromImage(AnimationAsset::CreateMultiTexture(textures, maxFrame, padding));
             }
-            ImGui::Image(tt);
+            ImGui::Image(a.texture);
             ImGui::TreePop();
         }
     }
     ImGui::Separator();
     if(ImGui::Button("Create"))
     {
-        ofstream o;
+        // ofstream o;
         std::string t(buff3);
         if(t.find(".json") == std::string::npos)
             t += ".json";
-        o.open(t);
+
+        //o.open(t);
+        a.name = buff;
+
         //json j;
-        json _out = AnimationAsset::createEmptyJson();
-        auto& defaultInfo = _out["defaultInfo"];
-        defaultInfo["name"] = buff;
-        if(makeByGroup)
-        {
-            if(MakeTexturesToGroup)
-            {
-
-            }
-            if(SingleTex)
-            {
-                tt.copyToImage().saveToFile(defaultInfo.at("name").get<std::string>() + ".png");
-                defaultInfo["texturePath"] = defaultInfo.at("name").get<std::string>() + ".png";
-            } else
-            {
-
-                json _f;
-                ifstream i("../chahe.json");
-                i >> _f;
-                defaultInfo["texturePath"] = _f["AssetCreate"];
-                i.close();
-            }
-        } else
-            defaultInfo["texturePath"] = buff2;
+//        json _out = AnimationAsset::createEmptyJson();
+//        auto& defaultInfo = _out["defaultInfo"];
+//        defaultInfo["name"] = buff;
+//        if(makeByGroup)
+//        {
+//            if(MakeTexturesToGroup)
+//            {
+//
+//            }
+//            if(SingleTex)
+//            {
+//                //tt.copyToImage().saveToFile(defaultInfo.at("name").get<std::string>() + ".png");
+//                defaultInfo["texturePath"] = defaultInfo.at("name").get<std::string>() + ".png";
+//            } else
+//            {
+//
+//                json _f;
+//                ifstream i("../chahe.json");
+//                i >> _f;
+//                defaultInfo["texturePath"] = _f["AssetCreate"];
+//                i.close();
+//            }
+//        } else
+//            defaultInfo["texturePath"] = buff2;
         j.clear();
         groupCount = 0;
-        o << std::setw(4) << _out << std::endl;
-        o.close();
+//        o << std::setw(4) << _out << std::endl;
+//        o.close();
+        a.saveAsset(t);
         clearBuffers();
     }
     ImGui::EndChild();
@@ -539,7 +618,7 @@ void CAE::Application::editor()
             clearBuffers();
         }
         ImGui::PopStyleVar();
-        ImGui::PushStyleColor(ImGuiCol_ChildBg,ImVec4(0.07f, 0.07f, 0.09f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.07f, 0.07f, 0.09f, 1.00f));
         tapWindow();
         ImGui::PopStyleColor();
     } else
@@ -580,7 +659,7 @@ void CAE::Application::editorDragDropLogic()
 {
     static bool renameState = false;
     static int rename_id = 0;
-    static int global_id = 0; //just a local 'name' for part, value used only in make_text
+    //static int global_id = 0; //just a local 'name' for part, value used only in make_text
     auto make_text = [](Part& p)->std::string
     {
         return "rect #" + std::to_string(p.getId()) + ": " + "pos.x:" + std::to_string(p.getRect().left) + ", pos.y:" +
@@ -600,6 +679,7 @@ void CAE::Application::editorDragDropLogic()
     {
         if(const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("DAD"))
         {
+            History_data::NeedSnapshot();
             //IM_ASSERT(payload->DataSize == sizeof(int));
             const char* payload_n = (const char*) payload->Data;
             auto[group_n, part_n] = parse_data(std::string(payload_n));
@@ -615,6 +695,8 @@ void CAE::Application::editorDragDropLogic()
                 { return g->isSelected(); }), groups.end());
             } else //Part erase
             {
+                auto& parts = currAsset->groups[group_n]->getParts();
+                parts.erase(parts.begin() + part_n);
                 for(auto& g : *currAsset)
                 {
                     if(g->isSelected())
@@ -637,7 +719,7 @@ void CAE::Application::editorDragDropLogic()
             auto pos = sf::Vector2f(currAsset->getPosition());
             editorSubArray.emplace_back(
                     std::make_shared<Part>(
-                            sf::FloatRect(pos.x, pos.y, 20, 20), ++global_id
+                            sf::FloatRect(pos.x, pos.y, 20, 20)
                     ));
         }
     //////////////////END//////////////////
@@ -733,7 +815,6 @@ void CAE::Application::editorDragDropLogic()
                             int _i = 0;
                             for(auto& i : selectedParts)
                             {
-
                                 g->getParts().erase(g->getParts().begin() + (i - _i));
                                 ++_i;
                             }
@@ -777,6 +858,8 @@ void CAE::Application::editorDragDropLogic()
                     {
                         std::string str = std::to_string(group_id) + ":" + std::to_string(part_id);
                         const char* s = str.c_str();
+                        //group->setSelected(true);
+                        //part->setSelected(true);
                         ImGui::SetDragDropPayload("DAD", s, sizeof(s));
                         ImGui::Text("Swap %s", make_text(*part).c_str());
                         ImGui::EndDragDropSource();
@@ -867,7 +950,7 @@ void CAE::Application::mainWindow()
 {
     ImGui::BeginChild("MainWindow");
     if(ImGui::Button("Load Last Session"))
-        loadState();
+        loadAsset(lastOpenFile, true);
     ImGui::EndChild();
 }
 
@@ -887,7 +970,7 @@ void CAE::Application::viewLoadedAssets()
             if(ImGui::TreeNode(a->getName().c_str()))
             {
                 sf::Vector2f size = (sf::Vector2f) a->getTexture()->getSize();
-                ImGui::BeginChild("Image", {window->getSize().x / 3.f, 300.f}, false,
+                ImGui::BeginChild("Image", {window->getSize().x / 3.5f, 300.f}, false,
                                   ImGuiWindowFlags_NoResize | ImGuiWindowFlags_HorizontalScrollbar);
                 ImGui::Image(*a, size);
                 ImGui::EndChild();
@@ -953,11 +1036,16 @@ void CAE::Application::drawMenuBar()
         {
             if(ImGui::MenuItem("Main Window", NULL, state == states::Null))
                 state = states::Null;
-            if(ImGui::MenuItem("Load Asset", NULL, state == states::LoadAsset))
-                state = states::LoadAsset;
             if(ImGui::MenuItem("New", NULL, state == states::CreateAsset))
                 state = states::CreateAsset;
-            if(ImGui::MenuItem("Save Asset", NULL, state == states::SaveAsset))
+            if(ImGui::MenuItem("Open", NULL, state == states::LoadAsset))
+                state = states::LoadAsset;
+            if(ImGui::BeginMenu("Open Recent"))
+            {
+                openRecent();
+                ImGui::EndMenu();
+            }
+            if(ImGui::MenuItem("Save as", NULL, state == states::SaveAsset))
                 state = states::SaveAsset;
             if(ImGui::MenuItem("Edit Asset", NULL, state == states::Editor))
                 state = states::Editor;
@@ -1018,6 +1106,16 @@ void CAE::Application::addEventsHandler()
 {
     EventManager& eManager = eventManagers.addEM("MainManager");
     eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F1), &Application::changeMovingMode_e, this);
+    static bool lc = false;
+    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::LControl), [](sf::Event&)
+    { lc = true; });
+    eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::LControl), [](sf::Event&)
+    { lc = false; });
+
+    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Z), [this](sf::Event&)
+    { History_data::undo(currAsset.get()); });
+    eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::Y), [this](sf::Event&)
+    { History_data::redo(currAsset.get()); });
     //eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), &Application::useMouseToMove_e, this);
     eManager.addEvent(KBoardEvent::KeyPressed(sf::Keyboard::F2), [this](sf::Event&)
     {
@@ -1032,10 +1130,11 @@ CAE::Application::Application(sf::RenderWindow& w)
         : tools_container(this, &w), state(states::Null), window(&w),
           scaleFactor(1.5f),
           nodeSize(5), scaleSign(0), eventManagers(),
-          useFloat(true), newMessage(false)
+          useFloat(true), newMessage(false), LogConsole(false)
 {
     setTheme();
     addEventsHandler();
+    loadState();
     view.setSize(w.getDefaultView().getSize());
     scaleView = unscaleView = view.getSize();
     tools_container.Init();
@@ -1058,11 +1157,13 @@ void CAE::Application::loadState()
         {
             auto& appSettings = j.at("Application Settings");
             if(appSettings.find("currentAsset") != appSettings.end())
-            {
-                std::string p = appSettings.at("currentAsset").get<std::string>();
-                loadAsset(p, true);
-            }
+                lastOpenFile = appSettings.at("currentAsset").get<std::string>();
+            //historyAddFile(p);
+            //loadAsset(p, true);
+
             creatorMode = appSettings.at("creatorMode").get<bool>();
+            for(auto& p : j.at("File History"))
+                historyAddFile(p.get<std::string>());
             tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->load4Json(j.at("MagicTool Settings"));
         }
         catch (json::exception& e)
@@ -1089,6 +1190,7 @@ void CAE::Application::saveState()
     }
     applicationMain["creatorMode"] = creatorMode;
     j["MagicTool Settings"] = tools_container.getTool<MagicTool>(tool_type::MAGICTOOL)->save2Json();
+    j["File History"] = fileHistory;
     open << std::setw(4) << j;
     open.close();
 }
@@ -1097,34 +1199,43 @@ void CAE::Application::loadAsset(std::string path, bool setAsCurr)
 {
     if(!path.empty())
     {
-        auto task = [this, setAsCurr](std::string copyBuffer)
+        // auto task = [this, setAsCurr](std::string copyBuffer)
+        //  {
+        // sf::Context _;
+        // auto ptr = std::make_shared<CAE::AnimationAsset>(copyBuffer);
+        if(load != nullptr)
         {
-            sf::Context _;
-            auto ptr = std::make_shared<CAE::AnimationAsset>(copyBuffer);
-            if(ptr->loadFromFile())
-            {
-                if(auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
-                    {
-                        return ptr->getName() == val->getName();
-                    }); it != animAssets.end())
-                {
-                    Console::AppLog::addLog("Assets loaded arleady", Console::message);
-                    //delete ptr;
-                } else
-                    animAssets.emplace_back(ptr);
-                if(setAsCurr)
-                {
-                    currAsset = *animAssets.begin();
-                    assetChanged = true;
-                }
-            }
-            //else
-            //	delete ptr;
-        };
-        Console::AppLog::addLog("Loading asset from: " + path, Console::message);
-        //task(path);
-        std::thread(task, path).detach();
-        //  std::thread(task, path).detach();
+            Console::AppLog::addLog("wait", Console::message);
+        } else
+        {
+            historyAddFile(path);
+            load = std::make_shared<CAE::AnimationAsset>(path);
+            load->loadFromFile();
+        }
+
+//            if(ptr->loadFromFile())
+//            {
+//                if(auto it = find_if(animAssets.begin(), animAssets.end(), [ptr](auto val)
+//                    {
+//                        return ptr->getName() == val->getName();
+//                    }); it != animAssets.end())
+//                {
+//                    Console::AppLog::addLog_("Assets %s loaded arleady", Console::message, (*it)->name.c_str());
+//                    currAsset = *it;
+//                } else
+//                {
+//                    animAssets.emplace_back(ptr);
+//                    if(setAsCurr)
+//                    {
+//                        currAsset = animAssets.back();
+//                        History_data::NeedSnapshot();
+//                        assetChanged = true;
+//                    }
+//                }
+//            }
+        // };
+        // Console::AppLog::addLog("Loading asset from: " + path, Console::message);
+        // std::thread(task, path).detach();
         clearBuffers();
     } else
         Console::AppLog::addLog("File does not exist or input is empty!", Console::message);
@@ -1219,9 +1330,10 @@ void CAE::Application::start()
         fps = 1.0f / (currentTime.asSeconds() - previousTime.asSeconds()); // the asSeconds returns a float
         previousTime = currentTime;
         //ImGui::ShowDemoWindow();
+
 #ifdef DEBUG
-        ImGui::Begin("Debug", 0, ImGuiWindowFlags_AlwaysAutoResize);
-        ImGui::Text("fps: %.2f", fps);
+        ImGui::Begin("Debug");
+        ImGui::Text("fps: %.2f", ImGui::GetIO().Framerate);
         ImGui::Text("Mouse pos x: %f, y: %f", eventManagers.currMousePos().x, eventManagers.currMousePos().y);
         //ImGui::Text("Mouse delta x: %f", eManager.worldMouseDelta());
         ImGui::Separator();
@@ -1238,6 +1350,34 @@ void CAE::Application::start()
         ImGui::Text("buff: %s", this->buff);
         ImGui::Text("buff2: %s", this->buff2);
         ImGui::Text("buff3: %s", this->buff3);
+        ImGui::Text("current: %i", CAE::History_data::current);
+        ImGui::Text("redo_cap: %i", CAE::History_data::redo_cap);
+        ImGui::Text("undo_cap: %i", CAE::History_data::undo_cap);
+        ImGui::Text("iter: %i", CAE::History_data::iter);
+        ImGui::Separator();
+        int _i = 0;
+        for(auto& p : History_data::curr)
+        {
+            ImGui::PushID(++_i);
+            if(p.groups.size() > 0)
+            {
+                ImVec4 col;
+                if(_i - 1 == History_data::iter)
+                    col = {0.7, 0.3, 0.1, 1};
+                else
+                    col = {0.1, 0.3, 0.7, 1};
+                ImGui::PushStyleColor(ImGuiCol_Text, col);
+                if(ImGui::TreeNode((std::to_string(_i)).c_str()))
+                {
+                    for(auto& g : p.groups)
+                        ImGui::Text("name %s; part size %zu", g.name.c_str(), g.part_data.size());
+                    ImGui::TreePop();
+                }
+                ImGui::PopStyleColor();
+            } else
+                ImGui::Text("Data; is_valid", p.is_valid);
+            ImGui::PopID();
+        }
         ImGui::End();
 #endif // DEBUG
         update();
@@ -1251,7 +1391,7 @@ void CAE::Application::setTheme()
     style->WindowPadding = ImVec2(10, 9);
     style->WindowRounding = 5.0f;
     style->FramePadding = ImVec2(3, 5);
-    style->FrameRounding = 1.0f;
+    style->FrameRounding = 2.0f;
     style->ItemSpacing = ImVec2(10, 8);
     style->ItemInnerSpacing = ImVec2(8, 6);
     style->IndentSpacing = 25.0f;
@@ -1296,4 +1436,12 @@ void CAE::Application::setTheme()
     style->Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.25f, 1.00f, 0.00f, 1.00f);
     style->Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.25f, 1.00f, 0.00f, 0.43f);
     style->Colors[ImGuiCol_ModalWindowDarkening] = ImVec4(1.00f, 0.98f, 0.95f, 0.73f);
+}
+
+void CAE::Application::openRecent()
+{
+    for(auto& e : fileHistory)
+        if(ImGui::MenuItem(e.c_str()))
+            loadAsset(e, true);
+
 }

@@ -38,6 +38,7 @@ namespace CAE
         //int mode;
         sf::IntRect offset;
         //sf::Vector2i kernel_rect;
+        History_data* his;
         sf::IntRect cr;
         cv::Mat source_image;
         cv::Mat use_image;
@@ -96,7 +97,8 @@ namespace CAE
                     once = false;
                     cropSrc(rect, true);
                     for(auto& r : makeBounds())
-                        group->getParts().emplace_back(std::make_shared<Part>(r, 0));
+                        group->addPart(r);
+                        //group->getParts().emplace_back(std::make_shared<Part>(r,*his, 0));
                     rect = {};
                     shape.setPosition(sf::Vector2f(0, 0));
                     shape.setSize(sf::Vector2f(0, 0));

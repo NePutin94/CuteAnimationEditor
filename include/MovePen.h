@@ -11,8 +11,11 @@ namespace CAE
         std::shared_ptr<Part> selectedPart;
         std::shared_ptr<Group> selectedGroup;
         std::shared_ptr<Part> lastSelected;
+        sf::RectangleShape shape;
+        sf::IntRect rect;
         ScaleNode* selectedNode;
         bool& useFloat;
+        bool once;
         bool MouseLeftPressed;
         bool KeyPressed;
         bool pointSelected;
@@ -33,8 +36,13 @@ namespace CAE
                                                                                                    selectedNode(nullptr),
                                                                                                    MouseLeftPressed(false),
                                                                                                    KeyPressed(false), pointSelected(false),
-                                                                                                   ctrlPress(false), altPress(false)
-        {}
+                                                                                                   ctrlPress(false), altPress(false),
+                                                                                                   once(false), partSelected(false)
+        {
+            shape.setFillColor(sf::Color::Transparent);
+            shape.setOutlineColor(CAE::Colors::OutLine_r);
+            shape.setOutlineThickness(1);
+        }
 
         void Enable() override
         {
@@ -74,7 +82,7 @@ namespace CAE
             });
             eManager.addEvent(KBoardEvent::KeyReleased(sf::Keyboard::LAlt), [this](sf::Event&)
             {
-                altPress = false;
+                altPress = (MouseLeftPressed) ? true : false;
             });
             eManager.addEvent(MouseEvent::ButtonPressed(sf::Mouse::Left), [this](sf::Event& event)
             {
@@ -82,11 +90,16 @@ namespace CAE
             });
             eManager.addEvent(MouseEvent::ButtonReleased(sf::Mouse::Left), [this](sf::Event& event)
             {
+                if(partSelected || pointSelected)
+                {
+                    History_data::NeedSnapshot();
+                }
                 MouseLeftPressed = false;
                 pointSelected = false;
                 selectedNode = nullptr;
                 selectedPoint = -1;
                 partSelected = false;
+                once = false;
                 if(ctrlPress)
                 {
                     if(!Exit && !MouseLeftPressed && asset != nullptr)
@@ -97,6 +110,26 @@ namespace CAE
                                                 });
 
                 }
+                if(altPress)
+                {
+                    bool ok = false;
+                    if(abs(rect.left) - abs(rect.width) > 0 && abs(rect.top) - abs(rect.height))
+                    {
+                        for(auto group : *asset)
+                            if(group->isSelected())
+                            {
+                                group->addPart(rect);
+                                ok = true;
+                                break;
+                            }
+                    }
+                    if(!ok)
+                        Console::AppLog::addLog("Select the group where the rectangle will be added", Console::message);
+                    rect = {};
+                    shape.setPosition(sf::Vector2f(0, 0));
+                    shape.setSize(sf::Vector2f(0, 0));
+                    altPress = false;
+                }
             });
 
             //move rect and scale node by mouse
@@ -105,119 +138,143 @@ namespace CAE
                 //bool endNodeUpdate = false;
                 if(!Exit && MouseLeftPressed && asset != nullptr)
                 {
-                    for(auto group : *asset)
+                    if(altPress)
                     {
-                        if(group->isVisible())
-                            for(std::shared_ptr<Part> elem : *group)
-                            {
-                                for(auto& p : elem->getNode())
-                                    if(bool arleadySelected = (selectedPoint == p.side && &p == selectedNode);
-                                            !partSelected &&
-                                            ((!pointSelected && p.getGlobalBounds().contains(EventsHolder.currMousePos())) ||
-                                             arleadySelected))
+                        if(!once)
+                        {
+                            once = true;
+                            rect.left = EventsHolder.currMousePos().x;
+                            rect.top = EventsHolder.currMousePos().y;
+                        } else
+                        {
+                            auto delta = sf::Vector2f(rect.left, rect.top) - EventsHolder.currMousePos();
+                            rect.width = -delta.x;
+                            rect.height = -delta.y;
+                        }
+                        shape.setPosition(sf::Vector2f(rect.left, rect.top));
+                        shape.setSize(sf::Vector2f(rect.width, rect.height));
+                    } else
+                    {
+                        for(auto group : *asset)
+                        {
+                            if(group->isVisible())
+                                for(std::shared_ptr<Part> elem : *group)
+                                {
+                                    for(auto& p : elem->getNode())
+                                        if(bool arleadySelected = (selectedPoint == p.side && &p == selectedNode);
+                                                !partSelected &&
+                                                ((!pointSelected && p.getGlobalBounds().contains(EventsHolder.currMousePos())) ||
+                                                 arleadySelected))
+                                        {
+                                            pointSelected = true;
+                                            selectedPoint = p.side;
+                                            selectedNode = &p;
+                                            //elem->setSelected(true);
+                                            auto elem_rect = elem->getRect();
+                                            sf::Vector2f value = {0, 0};
+                                            sf::Vector2f delta = (sf::Vector2f) EventsHolder.getDelta();
+                                            zoom = EventsHolder.getZoom();
+                                            delta.x *= EventsHolder.zoom;
+                                            delta.y *= EventsHolder.zoom;
+                                            if(!useFloat)
+                                            {
+                                                static sf::Vector2f delta2;
+                                                delta2 += delta;
+                                                auto _delta = -(sf::Vector2i) delta2;
+                                                int factor = 0.9;
+                                                if(abs(_delta.x) > factor || abs(_delta.y) > factor)
+                                                {
+                                                    if(abs(_delta.x) > factor)
+                                                        value.x = _delta.x;
+                                                    if(abs(_delta.y) > factor)
+                                                        value.y = _delta.y;
+                                                    delta2 = {0, 0};
+                                                }
+                                                elem_rect = round(elem_rect);
+                                            } else
+                                                value = -delta;
+
+                                            switch(p.side)
+                                            {
+                                                case 0:
+                                                    elem->setRect(
+                                                            sf::FloatRect(elem_rect.left, elem_rect.top + value.y, elem_rect.width,
+                                                                          elem_rect.height - value.y));
+                                                    break;
+                                                case 1:
+                                                    elem->setRect(sf::FloatRect(elem_rect.left, elem_rect.top, elem_rect.width + value.x,
+                                                                                elem_rect.height));
+                                                    break;
+                                                case 2:
+                                                    elem->setRect(sf::FloatRect(elem_rect.left, elem_rect.top, elem_rect.width,
+                                                                                elem_rect.height + value.y));
+                                                    break;
+                                                case 3:
+                                                    elem->setRect(
+                                                            sf::FloatRect(elem_rect.left + value.x, elem_rect.top,
+                                                                          elem_rect.width - value.x,
+                                                                          elem_rect.height));
+                                                    break;
+                                            }
+                                            break;
+                                        }
+
+                                    if(auto rect = elem->getRect();
+                                            elem->isSelected() ||
+                                            (!pointSelected && (((selectedPart != nullptr) ? selectedPart == elem : true) &&
+                                                                elem->getRect().contains(EventsHolder.currMousePos()))))
                                     {
-                                        pointSelected = true;
-                                        selectedPoint = p.side;
-                                        selectedNode = &p;
-                                        //elem->setSelected(true);
-                                        auto rect = elem->getRect();
-                                        sf::Vector2f value = {0, 0};
+                                        if(!elem->isSelected())
+                                        {
+                                            selectedPart = elem;
+                                            selectedGroup = group;
+                                            selectedPart->changeColor(sf::Color(71, 58, 255));
+                                            elem->setSelected(true);
+                                        }
+                                        partSelected = true;
                                         sf::Vector2f delta = (sf::Vector2f) EventsHolder.getDelta();
-                                        zoom = EventsHolder.getZoom();
+                                        zoom = window->getView().getSize().x / window->getSize().x;
                                         delta.x *= EventsHolder.zoom;
                                         delta.y *= EventsHolder.zoom;
-                                        if(!useFloat)
+
+                                        if(useFloat)
+                                        {
+                                            rect.left = rect.left - delta.x;
+                                            rect.top = rect.top - delta.y;
+                                            elem->setRect(rect);
+                                        } else
                                         {
                                             static sf::Vector2f delta2;
                                             delta2 += delta;
                                             auto _delta = -(sf::Vector2i) delta2;
-                                            int factor = 0.9;
+                                            int factor = 1;
                                             if(abs(_delta.x) > factor || abs(_delta.y) > factor)
                                             {
                                                 if(abs(_delta.x) > factor)
-                                                    value.x = _delta.x;
+                                                    rect.left = round(rect.left) + _delta.x;
                                                 if(abs(_delta.y) > factor)
-                                                    value.y = _delta.y;
+                                                    rect.top = round(rect.top) + _delta.y;
                                                 delta2 = {0, 0};
                                             }
-                                            rect = round(rect);
-                                        } else
-                                            value = -delta;
-
-                                        switch(p.side)
-                                        {
-                                            case 0:
-                                                elem->setRect(
-                                                        sf::FloatRect(rect.left, rect.top + value.y, rect.width, rect.height - value.y));
-                                                break;
-                                            case 1:
-                                                elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width + value.x, rect.height));
-                                                break;
-                                            case 2:
-                                                elem->setRect(sf::FloatRect(rect.left, rect.top, rect.width, rect.height + value.y));
-                                                break;
-                                            case 3:
-                                                elem->setRect(
-                                                        sf::FloatRect(rect.left + value.x, rect.top, rect.width - value.x, rect.height));
-                                                break;
+                                            elem->setRect(rect);
                                         }
-                                        break;
-                                    }
 
-                                if(auto rect = elem->getRect();
-                                        elem->isSelected() ||
-                                        (!pointSelected && (((selectedPart != nullptr) ? selectedPart == elem : true) &&
-                                                            elem->getRect().contains(EventsHolder.currMousePos()))))
-                                {
-                                    if(!elem->isSelected())
-                                    {
-                                        selectedPart = elem;
-                                        selectedGroup = group;
-                                        selectedPart->changeColor(sf::Color(71, 58, 255));
-                                        elem->setSelected(true);
-                                    }
-                                    partSelected = true;
-                                    sf::Vector2f delta = (sf::Vector2f) EventsHolder.getDelta();
-                                    zoom = window->getView().getSize().x / window->getSize().x;
-                                    delta.x *= EventsHolder.zoom;
-                                    delta.y *= EventsHolder.zoom;
-
-                                    if(useFloat)
-                                    {
-                                        rect.left = rect.left - delta.x;
-                                        rect.top = rect.top - delta.y;
-                                        elem->setRect(rect);
-                                    } else
-                                    {
-                                        static sf::Vector2f delta2;
-                                        delta2 += delta;
-                                        auto _delta = -(sf::Vector2i) delta2;
-                                        int factor = 1;
-                                        if(abs(_delta.x) > factor || abs(_delta.y) > factor)
+                                        if(!elem->isSelected() || selectedPart == elem || lastSelected == elem)
                                         {
-                                            if(abs(_delta.x) > factor)
-                                                rect.left = round(rect.left) + _delta.x;
-                                            if(abs(_delta.y) > factor)
-                                                rect.top = round(rect.top) + _delta.y;
-                                            delta2 = {0, 0};
+                                            if(lastSelected != nullptr && lastSelected != selectedPart)
+                                            {
+                                                //if(!selectedPart->isSelected())
+                                                //{
+                                                lastSelected->setSelected(false);
+                                                // lastSelected->changeColor(sf::Color::Red);
+                                                //}
+                                            }
+                                            lastSelected = selectedPart;
                                         }
-                                        elem->setRect(rect);
-                                    }
-
-                                    if(!elem->isSelected() || selectedPart == elem || lastSelected == elem)
-                                    {
-                                        if(lastSelected != nullptr && lastSelected != selectedPart)
-                                        {
-                                            //if(!selectedPart->isSelected())
-                                            //{
-                                            lastSelected->setSelected(false);
-                                            // lastSelected->changeColor(sf::Color::Red);
-                                            //}
-                                        }
-                                        lastSelected = selectedPart;
                                     }
                                 }
-                            }
+
+                        }
                     }
                 }
             });
@@ -274,10 +331,15 @@ namespace CAE
                 selectedPart.reset();
             }
             Exit = (ImGui::IsAnyWindowHovered() || ImGui::IsAnyItemHovered());
+            if(ImGui::IsAnyWindowHovered() || ImGui::IsAnyItemHovered())
+            {
+                MouseLeftPressed = false;
+            }
         }
 
-        void draw(sf::RenderWindow&) override
+        void draw(sf::RenderWindow& w) override
         {
+            w.draw(shape);
         }
     };
 }

@@ -5,6 +5,12 @@ namespace CAE
 {
     namespace Colors
     {
+        /////////////////////
+        // s  - selected  //
+        // us - unselected//
+        // h  - hovered   //
+        // r  - rect      //
+        ////////////////////
         static const sf::Color OutLine_r = sf::Color(39, 221, 240, 255);
         static const sf::Color Rect_s = sf::Color(59, 114, 228, 255);
         static const sf::Color Rect_us = sf::Color(221, 35, 67, 255);
